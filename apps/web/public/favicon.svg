@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!--
+    distill favicon: brass compass-rose-meets-spark on midnight ground.
+    Reads as a tiny version of the in-app compass (top-left of the galaxy)
+    so the tab icon and the UI agree visually.
+  -->
+  <defs>
+    <radialGradient id="g" cx="50%" cy="50%" r="55%">
+      <stop offset="0%"  stop-color="#1a2236"/>
+      <stop offset="100%" stop-color="#070b15"/>
+    </radialGradient>
+    <linearGradient id="needle" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#e7c074"/>
+      <stop offset="100%" stop-color="#9a7c3b"/>
+    </linearGradient>
+  </defs>
+
+  <!-- midnight disc -->
+  <rect width="64" height="64" rx="14" fill="url(#g)"/>
+
+  <!-- outer + inner brass rings -->
+  <g fill="none" stroke="#9a7c3b" stroke-width="1.2">
+    <circle cx="32" cy="32" r="24" opacity="0.85"/>
+    <circle cx="32" cy="32" r="16" opacity="0.55"/>
+    <circle cx="32" cy="32" r="8"  opacity="0.35"/>
+  </g>
+
+  <!-- 12-tick compass marks, cardinals are bolder -->
+  <g stroke="#9a7c3b">
+    <!-- cardinals: N E S W (long, bold) -->
+    <g stroke-width="1.6" opacity="0.95">
+      <line x1="32" y1="6"  x2="32" y2="11"/>
+      <line x1="58" y1="32" x2="53" y2="32"/>
+      <line x1="32" y1="58" x2="32" y2="53"/>
+      <line x1="6"  y1="32" x2="11" y2="32"/>
+    </g>
+    <!-- intercardinals (short, faded) -->
+    <g stroke-width="0.9" opacity="0.5">
+      <line x1="50.5" y1="13.5" x2="48"   y2="16"/>
+      <line x1="50.5" y1="50.5" x2="48"   y2="48"/>
+      <line x1="13.5" y1="50.5" x2="16"   y2="48"/>
+      <line x1="13.5" y1="13.5" x2="16"   y2="16"/>
+    </g>
+  </g>
+
+  <!-- north needle (brass), thin south stub -->
+  <polygon points="32,9 29,32 35,32" fill="url(#needle)"/>
+  <polygon points="32,55 30.5,32 33.5,32" fill="#9a7c3b" opacity="0.6"/>
+
+  <!-- center pivot -->
+  <circle cx="32" cy="32" r="2.2" fill="#e7c074"/>
+  <circle cx="32" cy="32" r="0.9" fill="#070b15"/>
+</svg>
