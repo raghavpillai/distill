@@ -57,13 +57,22 @@ bun run dev
 Prefer a hosted model? Set provider env vars before the pipeline step:
 
 ```bash
-CCC_CHAT_PROVIDER=anthropic  ANTHROPIC_API_KEY=... \
-CCC_EMBED_PROVIDER=openai    OPENAI_API_KEY=...  \
+# OpenAI (chat + embeddings on the same API)
+CCC_PROVIDER=openai OPENAI_API_KEY=... bun run pipeline
+
+# OpenAI gpt-5.3-codex (code-tuned chat via Responses API; embed falls back
+# to text-embedding-3-large). Bump CCC_CHAT_MODEL when newer codex models
+# (gpt-5.4-codex, gpt-5.5-codex, …) become available to your key.
+CCC_PROVIDER=codex OPENAI_API_KEY=... bun run pipeline
+
+# Anthropic chat + OpenAI embeddings (Anthropic has no embeddings endpoint)
+CCC_CHAT_PROVIDER=anthropic ANTHROPIC_API_KEY=... \
+CCC_EMBED_PROVIDER=openai   OPENAI_API_KEY=...   \
   bun run pipeline
 ```
 
-(Anthropic has no embeddings endpoint; embed provider falls back to Ollama if
-you leave it unset.)
+Fine-grained overrides: `CCC_CHAT_MODEL`, `CCC_EMBED_MODEL`, `CCC_CHAT_PROVIDER`,
+`CCC_EMBED_PROVIDER`.
 
 ## Layout
 
