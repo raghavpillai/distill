@@ -1,0 +1,184 @@
+@import "tailwindcss";
+
+@theme {
+  /* Midnight observatory palette */
+  --color-ink-abyss: #070b15;
+  --color-ink-deep: #0b1120;
+  --color-ink: #0f172a;
+  --color-ink-rail: #1a2236;
+  --color-ink-edge: #2a344e;
+  --color-ink-veil: rgba(210, 196, 161, 0.12);
+
+  --color-ivory: #f2ebd9;
+  --color-ivory-soft: #d9d1bd;
+  --color-parchment: #eadfc6;
+  --color-dust: #8c8472;
+
+  --color-brass: #d4a85a;
+  --color-brass-bright: #e7c074;
+  --color-brass-dim: #9a7c3b;
+  --color-copper: #c7603a;
+  --color-copper-dim: #8e442a;
+  --color-verdigris: #4c8e89;
+  --color-ember: #e0523c;
+
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --font-body: "Fraunces", ui-serif, Georgia, serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+html, body, #root { height: 100%; }
+
+body {
+  font-family: var(--font-body);
+  font-feature-settings: "ss01" on, "ss02" on;
+  color: var(--color-ivory);
+  background: var(--color-ink-abyss);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Atmosphere: layered radial glow + fine grain */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(1200px 700px at 12% -10%, rgba(199, 96, 58, 0.10), transparent 70%),
+    radial-gradient(900px 600px at 95% 110%, rgba(76, 142, 137, 0.08), transparent 60%),
+    radial-gradient(700px 500px at 60% 40%, rgba(212, 168, 90, 0.04), transparent 70%);
+  z-index: 0;
+}
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.95  0 0 0 0 0.92  0 0 0 0 0.85  0 0 0 0.06 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  opacity: 0.35;
+  mix-blend-mode: overlay;
+  z-index: 1;
+}
+
+#root { position: relative; z-index: 2; }
+
+/* Hairline rules */
+.hairline { background: linear-gradient(to right, transparent, var(--color-ink-edge), transparent); height: 1px; }
+.hairline-v { background: linear-gradient(to bottom, transparent, var(--color-ink-edge), transparent); width: 1px; }
+
+/* Display text tuning */
+.display {
+  font-family: var(--font-display);
+  font-variation-settings: "opsz" 144, "SOFT" 70, "WONK" 1;
+  letter-spacing: -0.02em;
+}
+.display-tight {
+  font-family: var(--font-display);
+  font-variation-settings: "opsz" 144, "SOFT" 30, "WONK" 0;
+  letter-spacing: -0.03em;
+}
+.mono { font-family: var(--font-mono); font-feature-settings: "zero" on; letter-spacing: 0.02em; }
+.smallcaps {
+  font-family: var(--font-display);
+  font-variation-settings: "opsz" 10;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+/* Tabular numerals everywhere numbers matter */
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* Plotly dark container tune */
+.plot-container .main-svg { background: transparent !important; }
+.plotly .hoverlayer .hovertext { filter: drop-shadow(0 8px 20px rgba(0,0,0,0.5)); }
+
+/* Thin scrollbars */
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(to bottom, var(--color-ink-edge), var(--color-ink-rail));
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* Decorative corner glyphs (for cards) */
+.corner-mark {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: var(--color-brass-dim);
+  opacity: 0.55;
+}
+.corner-mark.tl { top: -1px; left: -1px; border-top: 1px solid; border-left: 1px solid; }
+.corner-mark.tr { top: -1px; right: -1px; border-top: 1px solid; border-right: 1px solid; }
+.corner-mark.bl { bottom: -1px; left: -1px; border-bottom: 1px solid; border-left: 1px solid; }
+.corner-mark.br { bottom: -1px; right: -1px; border-bottom: 1px solid; border-right: 1px solid; }
+
+/* Selection color matches the brass accent */
+::selection { background: rgba(212, 168, 90, 0.35); color: var(--color-ivory); }
+
+/* Workflow summary rendering (Streamdown output inside skill cards) */
+.prose-skill h1, .prose-skill h2, .prose-skill h3 {
+  font-family: var(--font-display);
+  font-variation-settings: "opsz" 144, "SOFT" 40;
+  color: var(--color-brass-bright);
+  letter-spacing: -0.01em;
+  margin-top: 0.6em;
+  margin-bottom: 0.3em;
+}
+.prose-skill h1 { font-size: 15.5px; }
+.prose-skill h2 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--color-brass);
+  margin-top: 0.9em;
+}
+.prose-skill h3 { font-size: 13.5px; color: var(--color-ivory); }
+.prose-skill p { margin: 0.35em 0; }
+.prose-skill ul, .prose-skill ol { padding-left: 1.1em; margin: 0.4em 0; }
+.prose-skill ul { list-style: disc; }
+.prose-skill ol { list-style: decimal; }
+.prose-skill li { margin: 0.18em 0; }
+.prose-skill li::marker { color: var(--color-brass-dim); }
+.prose-skill code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  padding: 0.06em 0.32em;
+  background: rgba(212, 168, 90, 0.10);
+  border: 1px solid rgba(212, 168, 90, 0.18);
+  border-radius: 2px;
+  color: var(--color-brass-bright);
+}
+.prose-skill pre {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  background: var(--color-ink-abyss);
+  border: 1px solid var(--color-ink-rail);
+  padding: 0.55em 0.8em;
+  border-radius: 3px;
+  overflow-x: auto;
+  margin: 0.5em 0;
+}
+.prose-skill pre code { background: transparent; border: 0; padding: 0; color: var(--color-ivory-soft); }
+.prose-skill strong { color: var(--color-ivory); font-weight: 600; }
+.prose-skill em { color: var(--color-ivory-soft); }
+.prose-skill a { color: var(--color-verdigris); text-decoration: underline; text-underline-offset: 2px; }
+.prose-skill hr { border: 0; border-top: 1px solid var(--color-ink-rail); margin: 0.7em 0; }
+.prose-skill blockquote {
+  border-left: 2px solid var(--color-brass-dim);
+  padding-left: 0.7em;
+  color: var(--color-ivory-soft);
+  font-style: italic;
+  margin: 0.4em 0;
+}
+
+/* Focus ring */
+:focus-visible {
+  outline: 1px solid var(--color-brass);
+  outline-offset: 2px;
+}
