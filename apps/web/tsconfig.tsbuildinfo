@@ -1,1 +1,0 @@
-{"root":["./src/App.tsx","./src/ClusterPanel.tsx","./src/ConversationDrawer.tsx","./src/Galaxy.tsx","./src/Scatter.tsx","./src/SkillsPanel.tsx","./src/Stat.tsx","./src/colors.ts","./src/main.tsx","./src/orbits.ts","./src/plotly.d.ts","./src/types.ts","./vite.config.ts"],"version":"5.9.3"}

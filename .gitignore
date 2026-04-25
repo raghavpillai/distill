@@ -12,6 +12,18 @@ __pycache__/
 !.env.example
 bun.lock
 
+# IDE / TS / log scratch
+*.tsbuildinfo
+*.log
+.DS_Store
+.idea/
+.vscode/
+
+# Stray local test scripts (snap.py, click_audit.py, etc) accumulate at root
+# from manual UI debugging. Keep them out of the repo.
+/*.py
+!scripts/*.py
+
 # All pipeline outputs are derived from the user's local
 # ~/.claude/projects/*.jsonl + LLM calls. They contain the developer's
 # personal conversation history — regenerable, sensitive, and large.
