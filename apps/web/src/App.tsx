@@ -5,6 +5,13 @@ import { Galaxy } from "./Galaxy";
 import { SkillsPanel } from "./SkillsPanel";
 import { ConversationDrawer } from "./ConversationDrawer";
 import { Stat } from "./Stat";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/Select";
 
 export type CompassState = { yaw: number; pitch: number };
 
@@ -168,21 +175,22 @@ export function App() {
 
         <div className="mt-4 flex items-center gap-3 text-xs">
           <label className="smallcaps text-[color:var(--color-dust)]">filter · repo</label>
-          <div className="relative">
-            <select
-              value={repoFilter}
-              onChange={(e) => setRepoFilter(e.target.value)}
-              className="mono text-xs px-2.5 py-1 bg-transparent border border-[color:var(--color-ink-rail)] rounded-[3px] text-[color:var(--color-ivory)] appearance-none pr-7 max-w-[280px] focus:border-[color:var(--color-brass)]"
-            >
-              <option value="" className="bg-[color:var(--color-ink-abyss)]">all repos ({repos.length})</option>
+          <Select
+            value={repoFilter || "__all__"}
+            onValueChange={(v) => setRepoFilter(v === "__all__" ? "" : v)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">all repos ({repos.length})</SelectItem>
               {repos.map((r) => (
-                <option key={r} value={r} className="bg-[color:var(--color-ink-abyss)]">{r}</option>
+                <SelectItem key={r} value={r}>
+                  {r}
+                </SelectItem>
               ))}
-            </select>
-            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[color:var(--color-brass)]">
-              ▾
-            </span>
-          </div>
+            </SelectContent>
+          </Select>
           <AnimatePresence>
             {selectedCluster !== null && (
               <motion.button

@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Streamdown } from "streamdown";
 import type { Cluster, Point, SkillProposal } from "./types";
 import { clusterColor } from "./colors";
+import { Input } from "./ui/Input";
 
 type Props = {
   clusters: Cluster[];
@@ -128,14 +129,13 @@ export function SkillsPanel({
           </div>
         </div>
         <div className="mt-2 flex gap-2">
-          <input
+          <Input
             type="search"
             placeholder={
               tab === "skills" ? "seek within proposed skills…" : "seek within all clusters…"
             }
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full mono text-xs px-3 py-2 bg-transparent border border-[color:var(--color-ink-rail)] rounded-[3px] text-[color:var(--color-ivory)] placeholder:text-[color:var(--color-dust)]/60 focus:border-[color:var(--color-brass)] transition-colors"
           />
         </div>
       </div>

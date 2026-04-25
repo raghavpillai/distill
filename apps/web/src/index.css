@@ -121,6 +121,16 @@ body::after {
 /* Selection color matches the brass accent */
 ::selection { background: rgba(212, 168, 90, 0.35); color: var(--color-ivory); }
 
+/* Radix popover/select open/close animations */
+@keyframes selectIn {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)     scale(1); }
+}
+@keyframes selectOut {
+  from { opacity: 1; transform: translateY(0)     scale(1); }
+  to   { opacity: 0; transform: translateY(-2px) scale(0.98); }
+}
+
 /* Workflow summary rendering (Streamdown output inside skill cards) */
 .prose-skill h1, .prose-skill h2, .prose-skill h3 {
   font-family: var(--font-display);
