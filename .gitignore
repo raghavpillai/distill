@@ -1,0 +1,23 @@
+node_modules/
+.venv/
+dist/
+.next/
+.turbo/
+out/
+__pycache__/
+*.pyc
+.DS_Store
+.env
+.env.*
+!.env.example
+bun.lock
+
+# All pipeline outputs are derived from the user's local
+# ~/.claude/projects/*.jsonl + LLM calls. They contain the developer's
+# personal conversation history — regenerable, sensitive, and large.
+# Run `bun run pipeline` to regenerate.
+packages/pipeline/data/*.json
+packages/pipeline/data/sessions/
+packages/pipeline/data/*.parquet
+packages/pipeline/data/*.npy
+apps/web/dist/
