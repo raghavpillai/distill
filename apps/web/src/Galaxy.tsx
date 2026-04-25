@@ -19,6 +19,8 @@ type Props = {
   onSelectCluster: (id: number | null) => void;
   onOpenThread: (point: Point) => void;
   compassRef?: CompassRefShape;
+  /** Bump to ask the camera to fly back to the default home view. */
+  recenterToken?: number;
 };
 
 const PLANET_BASE_RADIUS = 0.09;
@@ -98,6 +100,7 @@ function Scene({
   onOpenThread,
   hoveredIdx,
   onHoverPlanet,
+  recenterToken,
 }: SceneProps) {
   // Stretch cluster centers along X so the galaxy fills widescreen displays
   // instead of sitting as a roughly-square cloud in the middle of the viewport.
@@ -172,7 +175,11 @@ function Scene({
         rotateSpeed={0.55}
         panSpeed={0.9}
       />
-      <CameraRig selectedCluster={selectedCluster} clusters={stretchedClusters} />
+      <CameraRig
+        selectedCluster={selectedCluster}
+        clusters={stretchedClusters}
+        recenterToken={recenterToken}
+      />
       <EffectComposer enableNormalPass={false} multisampling={0}>
         <Bloom
           intensity={0.95}
@@ -527,9 +534,11 @@ function OrbitRings({
 function CameraRig({
   selectedCluster,
   clusters,
+  recenterToken,
 }: {
   selectedCluster: number | null;
   clusters: Cluster[];
+  recenterToken?: number;
 }) {
   const { camera, controls } = useThree() as unknown as {
     camera: THREE.PerspectiveCamera;
@@ -564,6 +573,15 @@ function CameraRig({
     }
     flying.current = true;
   }, [selectedCluster, clusters]);
+
+  // Compass-click recenter: any change in recenterToken (counter) flies the
+  // camera back to the home view, even if no cluster is selected.
+  useEffect(() => {
+    if (recenterToken === undefined) return;
+    targetVec.current.set(0, 0, 0);
+    camVec.current.set(0, 8, 42);
+    flying.current = true;
+  }, [recenterToken]);
 
   useFrame(() => {
     if (!flying.current) return;

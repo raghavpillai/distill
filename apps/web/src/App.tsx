@@ -26,6 +26,13 @@ export function App() {
   // Live camera orientation, populated each frame from inside the Canvas. We
   // share via ref + RAF so React doesn't re-render on every camera tick.
   const compassRef = useRef<CompassState>({ yaw: 0, pitch: 0 });
+  // Bump to ask the Canvas's CameraRig to fly back to the default home view.
+  // Counter rather than boolean so we re-trigger if the user clicks twice.
+  const [recenterToken, setRecenterToken] = useState(0);
+  const recenter = () => {
+    setSelectedCluster(null); // also clears any active focus
+    setRecenterToken((n) => n + 1);
+  };
 
   useEffect(() => {
     fetch("/data/web.json")
@@ -220,6 +227,7 @@ export function App() {
             selectedCluster={selectedCluster}
             onSelectCluster={setSelectedCluster}
             compassRef={compassRef}
+            recenterToken={recenterToken}
             onOpenThread={(p) => {
               if (!p.s) return;
               setOpenThread({ sessionId: p.s, turnId: p.id });
@@ -228,9 +236,17 @@ export function App() {
             }}
           />
 
-          {/* Observatory chrome: compass rose + legend */}
-          <div className="absolute top-4 left-4 pointer-events-none select-none">
-            <CompassRose compassRef={compassRef} />
+          {/* Observatory chrome: compass rose + legend. Pointer-events on the
+              compass itself (the wrapper stays non-interactive). */}
+          <div className="absolute top-4 left-4 select-none pointer-events-none">
+            <button
+              onClick={recenter}
+              title="Recenter view"
+              aria-label="Recenter view"
+              className="pointer-events-auto cursor-pointer transition-transform duration-200 hover:scale-105 active:scale-95 focus:outline-none rounded-full"
+            >
+              <CompassRose compassRef={compassRef} />
+            </button>
           </div>
           {/* Corner ticks */}
           <CornerTicks />
