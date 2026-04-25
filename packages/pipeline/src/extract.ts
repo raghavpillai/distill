@@ -8,7 +8,14 @@
  */
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { DATA_DIR, PROJECTS_ROOT, normalizeCwd, repoLabel, stripSystemTags } from "./common.ts";
+import {
+  CODEX_SESSIONS_ROOT,
+  DATA_DIR,
+  PROJECTS_ROOT,
+  normalizeCwd,
+  repoLabel,
+  stripSystemTags,
+} from "./common.ts";
 import type { Session, Turn } from "./types.ts";
 
 const MIN_SUBSTANTIVE_CHARS = 30;
@@ -97,9 +104,20 @@ function extractSlash(text: string): string | null {
 }
 
 function* walk(dir: string): Generator<string> {
-  for (const name of readdirSync(dir)) {
+  let entries: string[];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const name of entries) {
     const p = join(dir, name);
-    const st = statSync(p);
+    let st: ReturnType<typeof statSync>;
+    try {
+      st = statSync(p);
+    } catch {
+      continue;
+    }
     if (st.isDirectory()) yield* walk(p);
     else if (name.endsWith(".jsonl")) yield p;
   }
@@ -108,7 +126,13 @@ function* walk(dir: string): Generator<string> {
 function listTopLevelJsonl(): string[] {
   // Only immediate <project>/<sid>.jsonl — nested dirs are subagent transcripts.
   const files: string[] = [];
-  for (const project of readdirSync(PROJECTS_ROOT)) {
+  let projects: string[] = [];
+  try {
+    projects = readdirSync(PROJECTS_ROOT);
+  } catch {
+    return files;
+  }
+  for (const project of projects) {
     const pdir = join(PROJECTS_ROOT, project);
     if (!statSync(pdir).isDirectory()) continue;
     for (const name of readdirSync(pdir)) {
@@ -117,7 +141,87 @@ function listTopLevelJsonl(): string[] {
   }
   return files;
 }
-void walk;
+
+// Codex CLI stores sessions at ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl.
+// Format differs from Claude Code: each line is { timestamp, type, payload }.
+//   type=session_meta      → metadata (id, cwd, model)
+//   type=response_item     → conversation turns (payload.role + payload.content[])
+//   type=event_msg         → harness events (skip)
+// We extract user/assistant turns and emit them with the same Turn shape.
+function parseCodexFile(file: string): Turn[] {
+  const raw = readFileSync(file, "utf8");
+  const lines = raw.split("\n").filter((l) => l.trim());
+  let session_id = "";
+  let cwd = "";
+  let started_at = "";
+  const out: Turn[] = [];
+  let turnIdx = 0;
+  for (const line of lines) {
+    let rec: { timestamp?: string; type?: string; payload?: Record<string, unknown> };
+    try {
+      rec = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (rec.type === "session_meta") {
+      const p = rec.payload ?? {};
+      session_id = String(p["id"] ?? "");
+      cwd = String(p["cwd"] ?? "");
+      started_at = String(p["timestamp"] ?? rec.timestamp ?? "");
+      continue;
+    }
+    if (rec.type !== "response_item") continue;
+    const p = rec.payload ?? {};
+    if (p["type"] !== "message") continue;
+    const role = p["role"] as string | undefined;
+    if (role !== "user" && role !== "assistant") continue;
+    const content = (p["content"] ?? []) as Array<{ type?: string; text?: string }>;
+    const text = content
+      .filter((c) => c.type === "input_text" || c.type === "output_text" || c.type === "text")
+      .map((c) => c.text ?? "")
+      .join("\n")
+      .trim();
+    if (!text) continue;
+
+    const cwd_norm = normalizeCwd(cwd);
+    const repo = repoLabel(cwd_norm);
+
+    // Codex injects two reliable boilerplate blocks the user does NOT type:
+    //   - <environment_context>… </environment_context>
+    //   - "# AGENTS.md instructions for …" preamble pulled from AGENTS.md
+    //   - <permissions instructions>… (and other harness wrappers)
+    // Mark these as non-clusterable just like SKIP_USER_PREFIXES does for Claude Code.
+    const looksLikeAgentsMd = /^#\s*AGENTS\.md instructions/i.test(text);
+    const looksLikeEnvContext = /^<environment_context>/.test(text);
+    const looksLikePermissions = /^<permissions instructions>/.test(text);
+    const isHarness = looksLikeAgentsMd || looksLikeEnvContext || looksLikePermissions;
+    let isUserPrompt = false;
+    if (role === "user" && !isHarness) {
+      isUserPrompt = isSubstantiveTaskPrompt(text, false);
+    }
+
+    const id = `codex:${session_id}:${turnIdx}`;
+    out.push({
+      id,
+      session_id: `codex:${session_id}`,
+      project_dir: `codex/${session_id.slice(0, 8)}`,
+      file: file.split("/").pop()!,
+      turn_idx: turnIdx++,
+      role: role as "user" | "assistant",
+      text,
+      cwd,
+      cwd_norm,
+      repo,
+      git_branch: "",
+      timestamp: rec.timestamp ?? started_at,
+      is_user_prompt: isUserPrompt,
+      is_slash: false,
+      slash_cmd: null,
+      is_meta: false,
+    });
+  }
+  return out;
+}
 
 function main(): void {
   const files = listTopLevelJsonl();
@@ -222,6 +326,34 @@ function main(): void {
     }
   }
 
+  // ---- Codex CLI pass ----
+  // Walk ~/.codex/sessions/**/*.jsonl and merge into the same turn / session
+  // streams. Codex sessions use a different schema (response_item records vs
+  // Claude Code's `type: user|assistant`), parsed by parseCodexFile().
+  const codexFiles = [...walk(CODEX_SESSIONS_ROOT)];
+  if (codexFiles.length > 0) {
+    console.log(`also found ${codexFiles.length} codex jsonl files under ${CODEX_SESSIONS_ROOT}`);
+    let codexTurns = 0;
+    for (const file of codexFiles) {
+      const fileTurns = parseCodexFile(file);
+      if (fileTurns.length === 0) continue;
+      codexTurns += fileTurns.length;
+      const sid = fileTurns[0]!.session_id;
+      const session: Session = {
+        session_id: sid,
+        project_dir: fileTurns[0]!.project_dir,
+        repo: fileTurns[0]!.repo,
+        cwd: fileTurns[0]!.cwd,
+        started_at: fileTurns[0]!.timestamp,
+        ended_at: fileTurns[fileTurns.length - 1]!.timestamp,
+        turn_ids: fileTurns.map((t) => t.id),
+      };
+      sessions.push(session);
+      turns.push(...fileTurns);
+    }
+    console.log(`  parsed ${codexTurns} codex turns`);
+  }
+
   // Dedupe user prompts across sessions (same text in same session is rare but possible).
   const seen = new Set<string>();
   for (const t of turns) {
@@ -235,8 +367,9 @@ function main(): void {
   }
 
   const nUserPrompts = turns.filter((t) => t.is_user_prompt).length;
+  const nCodex = turns.filter((t) => t.session_id.startsWith("codex:")).length;
   console.log(
-    `parsed ${turns.length} turns across ${sessions.length} sessions; ${nUserPrompts} clusterable user prompts`,
+    `parsed ${turns.length} turns (${nCodex} codex, ${turns.length - nCodex} claude) across ${sessions.length} sessions; ${nUserPrompts} clusterable user prompts`,
   );
 
   writeFileSync(`${DATA_DIR}turns.json`, JSON.stringify(turns));

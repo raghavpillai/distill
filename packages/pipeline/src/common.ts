@@ -2,6 +2,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 export const PROJECTS_ROOT = join(homedir(), ".claude", "projects");
+export const CODEX_SESSIONS_ROOT = join(homedir(), ".codex", "sessions");
 export const DATA_DIR = new URL("../data/", import.meta.url).pathname;
 
 const WORKTREE_RX = /(\.worktree(?:s)?\/[^/]+|\/\.claude-worktrees\/[^/]+|-worktree(?:s)?\/[^/]+)/g;
@@ -22,13 +23,13 @@ export function short(t: string, n = 260): string {
   return s.length <= n ? s : s.slice(0, n - 1) + "…";
 }
 
-// Claude Code injects a handful of wrapper tags into the user's message stream
-// (`<local-command-stdout>` is the output of `!shell` commands, `<system-reminder>`
-// is harness nudges, etc.). These are not user intent and must be stripped before
-// embedding or HDBSCAN will happily cluster unrelated prompts by their shared
-// boilerplate exhaust. Keep this regex in one place so extract/embed/cluster agree.
+// Both Claude Code and Codex CLI inject wrapper tags into the user's message
+// stream (`<local-command-stdout>` from `!shell` in Claude Code, `<environment_context>`
+// in Codex, etc.). These are harness exhaust, not user intent — strip them
+// before embedding or HDBSCAN will cluster unrelated prompts by their shared
+// boilerplate. Keep this regex in one place so extract/embed/cluster agree.
 const SYSTEM_TAG_RE =
-  /<(local-command-[a-z-]+|system-reminder|command-name|command-message|command-args|task-notification|background-bash-output|bash-stdout|bash-stderr|tool_result|tool_use_error)>[\s\S]*?<\/\1>/g;
+  /<(local-command-[a-z-]+|system-reminder|command-name|command-message|command-args|task-notification|background-bash-output|bash-stdout|bash-stderr|tool_result|tool_use_error|environment_context|permissions instructions|user_instructions)>[\s\S]*?<\/\1>/g;
 
 export function stripSystemTags(text: string): string {
   return text.replace(SYSTEM_TAG_RE, "").replace(/\s+\n/g, "\n").trim();
