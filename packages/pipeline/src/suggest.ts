@@ -171,6 +171,9 @@ Concreteness note: when the exemplars repeatedly invoke the same tool chain, com
 3. Pure confirmation/reaction with no instruction: "yes", "go ahead", "looks good".
 4. Pure configuration preference that belongs in CLAUDE.md: "always use 4 spaces", "prefer X library over Y".
 5. Random pasted logs or errors with no wrapping instruction.
+6. Reference / lookup tasks that boil down to "show me X from file Y": "give me the prompts again", "list the configs", "what's in the agents.ts file". A SKILL must encode a multi-step procedure beyond what the model would do by default. If the skill body is essentially "open the file and read it", it shouldn't be a skill.
+7. Verbal end-of-session checkpoints with no concrete output: "is this all good to go?", "is this perfect?", "anything else we need to do?". The model already does end-of-session reflection without a skill, so codifying this adds nothing.
+8. Generic "why is it broken?" debug prompts that don't name a specific tool chain, failure mode, or output artifact: "why is it crashing", "help me out", "why did it fail". A real debug-flavored skill must name the system being debugged (e.g. "debug GitHub Action triggers", "diagnose Daytona sandbox attach failures") and have a concrete inspection procedure.
 
 Do NOT reject merely because a prompt refers to a specific repo, URL, or tool. Specific references are the raw material of a personal skill.
 
@@ -570,6 +573,10 @@ async function main(): Promise<void> {
   const CONSOLIDATE_THRESHOLD = 0.78;
   await consolidateBySemantics(proposals, clusters, CONSOLIDATE_THRESHOLD);
   await consolidateByLLM(proposals, clusters);
+  // Final value gate: would installing this as a skill actually save the user
+  // effort vs the model's default behavior? Catches reference-lookups, verbal
+  // checkpoints, and vague debug clusters that pass every other filter.
+  await valueCheckByLLM(proposals, clusters);
 
   writeFileSync(OUT, JSON.stringify(proposals));
   const nAcc = proposals.filter((p) => p.accepted).length;
@@ -741,6 +748,116 @@ If nothing should be merged, return an empty groups array. Never group the same 
     }
   } catch (e) {
     console.warn(`  llm-consolidate skipped: ${(e as Error).message}`);
+  }
+}
+
+// Final-pass value check. Asks the model whether each accepted proposal
+// would meaningfully save the user effort compared to default model behavior,
+// i.e. is there a multi-step procedure here, or is this a lookup / verbal
+// checkpoint / vague debug cluster? Demotes the ones that fail.
+const valueSchema = z.object({
+  decisions: z
+    .array(
+      z.object({
+        cluster_id: z.number().int(),
+        useful: z
+          .boolean()
+          .describe(
+            "true if the skill encodes a multi-step procedure that adds value beyond the model's default behavior; false if it's a lookup/checkpoint/generic-debug cluster",
+          ),
+        reason: z
+          .string()
+          .describe("one sentence; only matters if useful=false"),
+      }),
+    )
+    .describe("one entry per input skill — every cluster_id must be present"),
+});
+
+async function valueCheckByLLM(
+  proposals: SkillProposal[],
+  clusters: Cluster[],
+): Promise<void> {
+  const accepted = proposals.filter((p) => p.accepted);
+  if (accepted.length < 2) return;
+  const clusterById = new Map(clusters.map((c) => [c.id, c]));
+
+  const system = `You are filtering proposed Claude Code skills to keep only those that would genuinely save a user effort.
+
+A useful skill encodes a MULTI-STEP PROCEDURE with concrete commands, file paths, or artifact destinations — something that's worth codifying because the user keeps asking for it the same way ACROSS DIFFERENT SITUATIONS.
+
+REJECT (useful=false) skills that fall into any of these:
+
+1. Reference / lookup tasks. Triggers like "give me the prompts", "list the configs", "show me the file" where the procedure is just open-and-read. The model can do this without a skill.
+
+2. End-of-session verbal checkpoints. Triggers like "is this all good?", "is this perfect?", "anything else?". The model already does this without a skill.
+
+3. Generic debug catch-alls. Triggers like "why is it failing?", "help me out", "what's wrong" that don't name a specific system, tool chain, or failure mode. A real debug skill names what's being debugged (e.g. "debug GitHub Action triggers", "diagnose Daytona sandbox attach failures").
+
+4. Wrappers around things the user can already type. If the skill body is essentially one shell command or one file read, it's not a workflow.
+
+5. **One-time feature projects.** If the trigger phrases describe a SINGLE DELIVERABLE PROJECT ("add Codex CLI support", "decommission Mattermost and Plane", "wire OSINT into bun dev") that is finite — once shipped, the skill never fires again — REJECT. Strong signals: single dominant session (>50% of prompts), short span, or starred prompts that read like a kickoff brief rather than a recurring ask. A real skill describes a SITUATION the user keeps walking into, not a project they walked through once.
+
+6. **Disparate incidents glued together by a vague verb.** If the starred prompts cover unrelated subjects ("mount EFS", "configure jumpbox SG", "enumerate USB drive") and the only common thread is a generic verb ("mount", "investigate", "fix"), REJECT. Real skills share a tool chain and an output artifact, not just a verb.
+
+7. **Trigger / exemplar mismatch.** If the proposed description claims "iterate on prompts" but the starred user prompts are status checks and infra fixes, REJECT — the cluster doesn't actually contain the workflow the description claims.
+
+ACCEPT (useful=true) skills that:
+- Reference specific tools, file paths, URLs, or artifacts repeated across exemplars
+- Have a clear input → procedure → output shape, recurring across sessions
+- Would meaningfully reduce the user's prompting overhead each time the situation comes up
+
+You're given diagnostics per skill: size (n) / sessions (sess) / time span (span) / single-session dominance fraction (maxFrac) / context-continuation marker count (cont). Use them. Skills with cont≥1 + low session count + single-project-shaped exemplars are very likely #5 above.
+
+Be honest — false positives here are worse than missed acceptances.`;
+
+  const list = accepted
+    .map((p) => {
+      const cl = clusterById.get(p.cluster_id);
+      const trig = (p.when_to_use || "").slice(0, 200);
+      const desc = (p.description || "").slice(0, 200);
+      const diag = cl
+        ? `  diag:    n=${cl.size} sess=${cl.session_count} span=${Math.round(cl.span_days)}d cont=${cl.continuation_count} maxFrac=${cl.max_session_fraction.toFixed(2)}`
+        : "";
+      const exs = (cl?.exemplars ?? []).slice(0, 4).map((ex, i) => {
+        const star = ex.match(/\[user\s*★\]\s*([^\n]+(?:\n(?!\[)[^\n]+)*)/);
+        const t = star ? star[1] : ex;
+        return `    ex${i + 1}: ${t.replace(/<[^>]+>[\s\S]*?<\/[^>]+>/g, "").replace(/\s+/g, " ").trim().slice(0, 220)}`;
+      });
+      return [
+        `cluster_id=${p.cluster_id}  /${p.name}`,
+        `  desc:    ${desc}`,
+        `  trigger: ${trig}`,
+        diag,
+        ...exs,
+      ]
+        .filter((l) => l)
+        .join("\n");
+    })
+    .join("\n\n");
+
+  try {
+    const { object } = await generateObject({
+      model: chatModel(),
+      schema: valueSchema,
+      system,
+      prompt: `Audit each of these accepted skills. Return useful=true/false per cluster_id.\n\n${list}`,
+      temperature: 0,
+    });
+
+    let demoted = 0;
+    for (const d of object.decisions) {
+      if (d.useful) continue;
+      const p = accepted.find((a) => a.cluster_id === d.cluster_id);
+      if (!p) continue;
+      p.accepted = false;
+      p.skill_md = "";
+      p.reason = `value-check rejected: ${d.reason}`;
+      demoted++;
+      console.log(`  ⨯ value-check ✗  /${p.name}  — ${d.reason}`);
+    }
+    if (demoted > 0) console.log(`value-check demoted ${demoted} accepted proposals`);
+  } catch (e) {
+    console.warn(`  value-check skipped: ${(e as Error).message}`);
   }
 }
 
