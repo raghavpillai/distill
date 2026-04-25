@@ -1,104 +1,97 @@
 # distill
 
-Workflows you repeat, crystallized into Claude Code skills.
+Reads your Claude Code conversation history and proposes personal skills for
+the workflows you repeat.
 
-`distill` reads your Claude Code conversation history, finds the things you ask
-for over and over, and proposes [Claude Code skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)
-for the patterns worth making reusable. It ships an observatory-style 3D
-interface so you can see those patterns as a galaxy: every prompt is a planet,
-every recurring workflow a solar system.
-
-It is a one-shot indexer meant to be run against your own history, locally,
-with local models. No prompts leave your machine.
-
----
+![screenshot](assets/screenshot.png)
 
 ## What it does
 
-1. **Indexes.** Walks `~/.claude/projects/*.jsonl`, pulls out every user prompt
-   across every repo you've worked in.
-2. **Embeds.** Encodes each prompt with a local embedding model.
-3. **Clusters.** UMAP → HDBSCAN → centroid-similarity merge. Similar prompts
-   form clusters; related clusters form "families".
-4. **Judges.** A local LLM reads each cluster's exemplars (±2-turn snippets for
-   context) and decides whether the pattern is worth a skill — and if so,
-   drafts one.
-5. **De-duplicates.** Embeds every SKILL.md already installed in
-   `~/.claude/skills/*/SKILL.md` and suppresses proposals that overlap.
-6. **Renders.** A 3D galaxy view where clusters are suns, prompts are planets
-   orbiting them, and families of related clusters sit near one another.
+Walks `~/.claude/projects/*.jsonl`, embeds every user prompt, clusters them,
+asks an LLM whether each cluster is a real recurring workflow, and drafts a
+[Claude Code skill](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)
+when it is. Skills already in `~/.claude/skills/` get filtered out by a
+shape-aware similarity check. Each accepted proposal includes a trigger, an
+"avoid when" clause, and concrete steps that cite your actual commands and
+file paths.
 
-## Screens
+The UI is an observatory: every accepted skill is a sun, every prompt is a
+planet around its cluster. Click a planet to open the original conversation
+at that turn.
 
-- A scatter of every prompt, colored by cluster.
-- Click a sun: the camera flies to the cluster. Planets are individually
-  clickable and open the full conversation transcript at that turn.
-- A side panel of proposed skills, sorted by frequency, each with a workflow
-  summary and provenance (which prompts it was distilled from).
-
-## Running it
+## Run it
 
 ```bash
-# 1. Install deps
 bun install
 
-# 2. Make sure Ollama is running with the defaults distill expects
+# default: local Ollama (qwen2.5:14b chat + qwen3-embedding:8b)
 ollama pull qwen3-embedding:8b
 ollama pull qwen2.5:14b-instruct
-
-# 3. Run the indexing pipeline once (~15–30 min depending on history size)
 bun run pipeline
-
-# 4. Open the observatory
-bun run dev
-# → http://localhost:5319
+bun run dev   # → http://localhost:5173
 ```
 
-Prefer a hosted model? Set provider env vars before the pipeline step:
+Hosted models work too:
 
 ```bash
 # OpenAI (chat + embeddings on the same API)
-CCC_PROVIDER=openai OPENAI_API_KEY=... bun run pipeline
+CCC_PROVIDER=openai OPENAI_API_KEY=… bun run pipeline
 
-# OpenAI gpt-5.3-codex (code-tuned chat via Responses API; embed falls back
-# to text-embedding-3-large). Bump CCC_CHAT_MODEL when newer codex models
-# (gpt-5.4-codex, gpt-5.5-codex, …) become available to your key.
-CCC_PROVIDER=codex OPENAI_API_KEY=... bun run pipeline
+# OpenAI Codex variant (gpt-5.3-codex via Responses API)
+CCC_PROVIDER=codex OPENAI_API_KEY=… bun run pipeline
 
 # Anthropic chat + OpenAI embeddings (Anthropic has no embeddings endpoint)
-CCC_CHAT_PROVIDER=anthropic ANTHROPIC_API_KEY=... \
-CCC_EMBED_PROVIDER=openai   OPENAI_API_KEY=...   \
+CCC_CHAT_PROVIDER=anthropic ANTHROPIC_API_KEY=… \
+CCC_EMBED_PROVIDER=openai   OPENAI_API_KEY=…   \
   bun run pipeline
 ```
 
-Fine-grained overrides: `CCC_CHAT_MODEL`, `CCC_EMBED_MODEL`, `CCC_CHAT_PROVIDER`,
-`CCC_EMBED_PROVIDER`.
+Override the defaults with `CCC_CHAT_MODEL` / `CCC_EMBED_MODEL`.
+
+## How a cluster becomes a skill
+
+1. Extract user prompts from every JSONL session. Drop confirmations and the system-injected wrapper tags Claude Code adds.
+2. Embed each prompt. Default is OpenAI `text-embedding-3-large`.
+3. UMAP into 2D, then HDBSCAN. A second HDBSCAN pass at a tighter `min_cluster_size` runs over the noise points and recovers small but coherent patterns the first pass dropped.
+4. A separate session-level clustering runs over whole-session intent text. This catches workflows whose individual prompts vary in phrasing but whose sessions look alike.
+5. A cluster has to clear several gates to reach the LLM: at least 3 sessions, at least a 3-day span, no single session contributing more than 75% of the prompts, and fewer than two "this session is being continued" markers in the exemplars. Without those gates, one-shot weekend projects look like recurring skills.
+6. The judge (gpt-5.4 by default) reads the exemplars and either rejects the cluster or drafts the SKILL.md body.
+7. Accepted proposals get a second pass: cosine similarity over the proposal shape (name + description + trigger + avoid-when + body), then a single LLM consolidation call to catch near-duplicates that cosine missed.
+8. Anything still alive is checked against `~/.claude/skills/`. If a proposal's workflow shape is too close to an installed skill, it gets dropped.
+
+## What's hardcoded vs LLM-driven
+
+Two things are hardcoded. Claude Code product facts: bundled skill names, the
+built-in slash commands like `/model` and `/permissions`, and the list of
+system-injected wrapper tags (`<local-command-stdout>`, `<system-reminder>`,
+and so on). And generic English filler patterns: confirmation phrases ("yes",
+"go ahead"), referential follow-up leads, weak verbs that make bad skill
+names.
+
+Everything that requires judgment is an LLM call. Cluster labels, family
+labels, the accept/reject verdict, the specificity rating, and the
+near-duplicate consolidation pass are all model-driven, so the same pipeline
+should generalize to other users without re-tuning vocabulary lists.
 
 ## Layout
 
 ```
-apps/web/            # Vite + React + react-three-fiber galaxy UI
-packages/pipeline/   # TypeScript indexing pipeline (ingest → embed → cluster → judge)
+apps/web/            React + react-three-fiber UI
+packages/pipeline/   bun TypeScript pipeline
+  src/extract.ts          ingest jsonl → turns
+  src/embed.ts            embed user prompts
+  src/cluster.ts          UMAP + HDBSCAN + noise recovery
+  src/session_cluster.ts  session-level clustering
+  src/label.ts            LLM cluster + family labels
+  src/suggest.ts          accept/reject + SKILL.md drafting
+  src/skill_diff.ts       shape-aware dedup vs installed skills
+  src/export.ts           write web.json + per-session views
+  src/ai.ts               provider dispatch (ollama / openai / anthropic / codex)
 ```
 
-The pipeline writes intermediate artifacts into `packages/pipeline/data/` and
-a single `web.json` that the UI reads.
-
-## Why
-
-Skills work best when they're grounded in what you actually do, not what
-someone thinks you should do. The loop is: your own history → embeddings →
-clusters → drafts → the ones you accept become installed skills that shape
-future sessions.
+Pipeline outputs (`packages/pipeline/data/*`) are `.gitignored` since they
+contain personal conversation content. Run the pipeline locally to regenerate.
 
 ## Stack
 
-- Bun + Turborepo
-- Vercel AI SDK (`ai`, `ollama-ai-provider-v2`, `@ai-sdk/openai`, `@ai-sdk/anthropic`)
-- UMAP (`umap-js`) + HDBSCAN (`hdbscan-ts`)
-- React 19, Tailwind 4, `@react-three/fiber` + `drei` + `postprocessing`, `motion/react`, `streamdown`
-
-## Status
-
-One-time demo. Not a product. Rerunning the pipeline is idempotent; the UI is
-static once the data file is written.
+bun · turborepo · Vercel AI SDK · `umap-js` + `hdbscan-ts` · React 19 · `@react-three/fiber` + `drei` + `postprocessing` · motion · streamdown · Tailwind 4
