@@ -4,7 +4,6 @@ import type { Dataset, Point } from "./types";
 import { Galaxy } from "./Galaxy";
 import { SkillsPanel } from "./SkillsPanel";
 import { ConversationDrawer } from "./ConversationDrawer";
-import { Stat } from "./Stat";
 import {
   Select,
   SelectContent,
@@ -167,16 +166,16 @@ export function App() {
             </div>
           </div>
 
-          <div className="ml-auto flex items-stretch gap-0 border border-[color:var(--color-ink-rail)] rounded-[3px]">
-            <Stat label="prompts" value={stats.total} />
-            <Divider />
-            <Stat label="skills" value={nSkills} />
-            <Divider />
-            <Stat label="clusters" value={stats.n_clusters} />
-            <Divider />
-            <Stat label="noise" value={`${noisePct.toFixed(0)}%`} />
-            <Divider />
-            <Stat label="repos" value={stats.n_repos} />
+          <div className="ml-auto self-end pb-1">
+            <StatRow
+              items={[
+                { label: "prompts", value: stats.total },
+                { label: "skills", value: nSkills },
+                { label: "clusters", value: stats.n_clusters },
+                { label: "noise", value: `${noisePct.toFixed(0)}%` },
+                { label: "repos", value: stats.n_repos },
+              ]}
+            />
           </div>
         </div>
 
@@ -288,8 +287,55 @@ export function App() {
   );
 }
 
-function Divider() {
-  return <div className="w-px bg-[color:var(--color-ink-rail)] self-stretch" />;
+// Compact, low-key inline stat row. Mono numbers + smallcaps labels separated
+// by hairline middots, no border/panel chrome. Numbers count up gently on
+// first paint to give the row a tiny pulse without screaming for attention.
+type StatItem = { label: string; value: number | string };
+
+function StatRow({ items }: { items: StatItem[] }) {
+  return (
+    <div className="flex items-baseline gap-x-3 text-[color:var(--color-dust)]">
+      {items.map((it, i) => (
+        <span key={it.label} className="flex items-baseline gap-1.5">
+          {i > 0 && (
+            <span className="text-[color:var(--color-brass-dim)]/50 mr-2 select-none">
+              ·
+            </span>
+          )}
+          <StatNumber value={it.value} />
+          <span className="smallcaps text-[10px] text-[color:var(--color-dust)]">
+            {it.label}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function StatNumber({ value }: { value: number | string }) {
+  const [display, setDisplay] = useState(typeof value === "number" ? "0" : value);
+  useEffect(() => {
+    if (typeof value !== "number") {
+      setDisplay(value);
+      return;
+    }
+    const start = performance.now();
+    const dur = 700;
+    let raf = 0;
+    const tick = (t: number) => {
+      const e = Math.min(1, (t - start) / dur);
+      const eased = 1 - Math.pow(1 - e, 3);
+      setDisplay(Math.round(value * eased).toLocaleString());
+      if (e < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+  return (
+    <span className="mono tnum text-[12px] text-[color:var(--color-ivory-soft)]">
+      {display}
+    </span>
+  );
 }
 
 
