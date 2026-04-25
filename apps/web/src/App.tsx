@@ -137,9 +137,6 @@ export function App() {
             <h1 className="display text-[32px] leading-none mt-1.5 text-[color:var(--color-ivory)]">
               distill
             </h1>
-            <div className="font-body text-[13px] italic text-[color:var(--color-dust)] mt-1">
-              workflows you repeat, crystallized into Claude Code skills.
-            </div>
             <div className="mono text-[10.5px] mt-2 text-[color:var(--color-dust)]">
               generated{" "}
               {new Date(stats.generated_at).toLocaleString(undefined, {
