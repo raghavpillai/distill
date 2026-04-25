@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import type { Dataset, Point } from "./types";
 import { Galaxy } from "./Galaxy";
 import { SkillsPanel } from "./SkillsPanel";
 import { ConversationDrawer } from "./ConversationDrawer";
 import { Stat } from "./Stat";
+
+export type CompassState = { yaw: number; pitch: number };
 
 type OpenThread = { sessionId: string; turnId: string };
 
@@ -14,6 +16,9 @@ export function App() {
   const [selectedCluster, setSelectedCluster] = useState<number | null>(null);
   const [openThread, setOpenThread] = useState<OpenThread | null>(null);
   const [repoFilter, setRepoFilter] = useState<string>("");
+  // Live camera orientation, populated each frame from inside the Canvas. We
+  // share via ref + RAF so React doesn't re-render on every camera tick.
+  const compassRef = useRef<CompassState>({ yaw: 0, pitch: 0 });
 
   useEffect(() => {
     fetch("/data/web.json")
@@ -206,6 +211,7 @@ export function App() {
             clusters={galaxyClusters}
             selectedCluster={selectedCluster}
             onSelectCluster={setSelectedCluster}
+            compassRef={compassRef}
             onOpenThread={(p) => {
               if (!p.s) return;
               setOpenThread({ sessionId: p.s, turnId: p.id });
@@ -216,7 +222,7 @@ export function App() {
 
           {/* Observatory chrome: compass rose + legend */}
           <div className="absolute top-4 left-4 pointer-events-none select-none">
-            <CompassRose />
+            <CompassRose compassRef={compassRef} />
           </div>
           {/* Corner ticks */}
           <CornerTicks />
@@ -263,61 +269,207 @@ function Divider() {
 }
 
 
-function CompassRose() {
+// Compass that tracks the 3D camera. The disc tilts (CSS perspective) on
+// camera pitch and rotates on yaw, so the "N" needle always points toward
+// the world-space "north" (−Z) regardless of where you've orbited.
+function CompassRose({
+  compassRef,
+}: {
+  compassRef: React.RefObject<CompassState>;
+}) {
+  const discRef = useRef<HTMLDivElement | null>(null);
+  const labelsRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      const { yaw, pitch } = compassRef.current ?? { yaw: 0, pitch: 0 };
+      const yawDeg = (yaw * 180) / Math.PI;
+      const pitchDeg = Math.max(-65, Math.min(65, (pitch * 180) / Math.PI));
+      // The disc tilts back as the camera looks down at the galaxy. The needle
+      // (rendered inside the disc) rotates so "north" stays in world space.
+      if (discRef.current) {
+        discRef.current.style.transform =
+          `rotateX(${pitchDeg}deg) rotateZ(${-yawDeg}deg)`;
+      }
+      // Cardinal labels stay upright (counter-rotate) but ride the tilt with
+      // the disc so they look like they're painted on it.
+      if (labelsRef.current) {
+        labelsRef.current.style.transform = `rotateZ(${yawDeg}deg)`;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [compassRef]);
+
   return (
-    <svg width="44" height="44" viewBox="0 0 44 44" className="opacity-60">
-      <g stroke="var(--color-brass-dim)" strokeWidth="0.6" fill="none">
-        <circle cx="22" cy="22" r="18" />
-        <circle cx="22" cy="22" r="12" strokeOpacity="0.6" />
-        <line x1="22" y1="2" x2="22" y2="42" />
-        <line x1="2" y1="22" x2="42" y2="22" strokeOpacity="0.6" />
-        <line x1="22" y1="22" x2="22" y2="6" strokeWidth="1.1" />
-      </g>
-      <text
-        x="22"
-        y="5.5"
-        textAnchor="middle"
-        fontFamily="IBM Plex Mono, monospace"
-        fontSize="6"
-        fill="var(--color-brass)"
-        letterSpacing="0.1em"
+    <div
+      style={{ perspective: "240px", perspectiveOrigin: "50% 60%" }}
+      className="opacity-70"
+    >
+      <div
+        ref={discRef}
+        style={{
+          width: 56,
+          height: 56,
+          transformStyle: "preserve-3d",
+          willChange: "transform",
+          transition: "transform 60ms linear",
+        }}
+        className="relative"
       >
-        N
-      </text>
-    </svg>
+        <svg
+          width="56"
+          height="56"
+          viewBox="0 0 56 56"
+          style={{ position: "absolute", inset: 0 }}
+        >
+          <defs>
+            <radialGradient id="cmpGrad" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="rgba(212, 168, 90, 0.08)" />
+              <stop offset="100%" stopColor="rgba(212, 168, 90, 0)" />
+            </radialGradient>
+          </defs>
+          <g stroke="var(--color-brass-dim)" strokeWidth="0.6" fill="none">
+            <circle cx="28" cy="28" r="24" fill="url(#cmpGrad)" />
+            <circle cx="28" cy="28" r="16" strokeOpacity="0.5" />
+            <circle cx="28" cy="28" r="8" strokeOpacity="0.3" />
+            <line x1="28" y1="2" x2="28" y2="54" strokeOpacity="0.4" />
+            <line x1="2" y1="28" x2="54" y2="28" strokeOpacity="0.4" />
+            {/* Tick marks every 30° */}
+            {Array.from({ length: 12 }, (_, i) => {
+              const a = (i * Math.PI) / 6;
+              const r1 = 22;
+              const r2 = i % 3 === 0 ? 18 : 20;
+              return (
+                <line
+                  key={i}
+                  x1={28 + Math.sin(a) * r1}
+                  y1={28 - Math.cos(a) * r1}
+                  x2={28 + Math.sin(a) * r2}
+                  y2={28 - Math.cos(a) * r2}
+                  strokeOpacity={i % 3 === 0 ? "0.85" : "0.4"}
+                />
+              );
+            })}
+          </g>
+          {/* Bright north needle */}
+          <polygon
+            points="28,5 26.4,28 29.6,28"
+            fill="var(--color-brass)"
+            opacity="0.95"
+          />
+          {/* South needle (dim) */}
+          <polygon
+            points="28,51 27,28 29,28"
+            fill="var(--color-brass-dim)"
+            opacity="0.6"
+          />
+          <circle cx="28" cy="28" r="1.6" fill="var(--color-brass)" />
+        </svg>
+        {/* Cardinal labels — counter-rotate on yaw so "N" reads right-side-up */}
+        <div
+          ref={labelsRef}
+          style={{
+            position: "absolute",
+            inset: 0,
+            transformStyle: "preserve-3d",
+            willChange: "transform",
+            transition: "transform 60ms linear",
+          }}
+        >
+          <span
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: "-2px",
+              transform: "translateX(-50%)",
+              fontFamily: "IBM Plex Mono, monospace",
+              fontSize: 8,
+              letterSpacing: "0.14em",
+              color: "var(--color-brass)",
+            }}
+          >
+            N
+          </span>
+          {(["E", "S", "W"] as const).map((d, i) => (
+            <span
+              key={d}
+              style={{
+                position: "absolute",
+                fontFamily: "IBM Plex Mono, monospace",
+                fontSize: 7,
+                letterSpacing: "0.14em",
+                color: "var(--color-brass-dim)",
+                opacity: 0.7,
+                ...(i === 0
+                  ? { top: "50%", right: "-1px", transform: "translateY(-50%)" }
+                  : i === 1
+                    ? { bottom: "-1px", left: "50%", transform: "translateX(-50%)" }
+                    : { top: "50%", left: "-1px", transform: "translateY(-50%)" }),
+              }}
+            >
+              {d}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
 function CornerTicks() {
+  // Frame corners drawn as 14×14 L-brackets. A short tick (3px) faces inward
+  // along each axis. We hide the TL tick because the compass sits there.
+  const corners: { key: string; pos: string; borders: string; tick: string }[] = [
+    {
+      key: "tr",
+      pos: "top-3 right-3",
+      borders: "border-t border-r",
+      tick: "top: 6px; right: -1px; width: 1px; height: 4px;",
+    },
+    {
+      key: "bl",
+      pos: "bottom-3 left-3",
+      borders: "border-b border-l",
+      tick: "bottom: -1px; left: 6px; width: 4px; height: 1px;",
+    },
+    {
+      key: "br",
+      pos: "bottom-3 right-3",
+      borders: "border-b border-r",
+      tick: "bottom: -1px; right: 6px; width: 4px; height: 1px;",
+    },
+  ];
   return (
     <>
-      {["tl", "tr", "bl", "br"].map((pos) => (
-        <div
-          key={pos}
-          className={
-            "absolute pointer-events-none " +
-            (pos.includes("t") ? "top-4 " : "bottom-4 ") +
-            (pos.includes("l") ? "left-4" : "right-4")
-          }
+      {corners.map(({ key, pos, borders, tick }) => (
+        <motion.div
+          key={key}
+          initial={{ opacity: 0, scale: 0.7 }}
+          animate={{ opacity: 0.55, scale: 1 }}
+          transition={{ delay: 0.5 + Math.random() * 0.2, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          className={`absolute pointer-events-none ${pos} w-[14px] h-[14px] ${borders}`}
+          style={{ borderColor: "var(--color-brass-dim)" }}
         >
-          <div
-            className="w-3 h-px"
-            style={{
-              background: "var(--color-brass-dim)",
-              opacity: 0.4,
-              transform: pos === "tr" || pos === "br" ? "translateX(8px)" : "",
-            }}
+          {/* tiny inward-facing tick */}
+          <span
+            style={
+              {
+                position: "absolute",
+                background: "var(--color-brass-dim)",
+                opacity: 0.7,
+                ...Object.fromEntries(
+                  tick.split(";").map((s) => s.trim()).filter(Boolean).map((s) => {
+                    const [k, v] = s.split(":").map((x) => x.trim());
+                    return [k!.replace(/-(\w)/g, (_m, c) => c.toUpperCase()), v];
+                  }),
+                ),
+              } as React.CSSProperties
+            }
           />
-          <div
-            className="h-3 w-px"
-            style={{
-              background: "var(--color-brass-dim)",
-              opacity: 0.4,
-              marginTop: pos.includes("t") ? 0 : -12,
-              transform: pos === "bl" || pos === "br" ? "translateY(-8px)" : "",
-            }}
-          />
-        </div>
+        </motion.div>
       ))}
     </>
   );

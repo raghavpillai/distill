@@ -10,12 +10,15 @@ import { planetsFromPoints, type Planet } from "./orbits";
 
 type Hover = { planetIdx: number | null; mouseX: number; mouseY: number };
 
+type CompassRefShape = React.RefObject<{ yaw: number; pitch: number }>;
+
 type Props = {
   points: Point[];
   clusters: Cluster[];
   selectedCluster: number | null;
   onSelectCluster: (id: number | null) => void;
   onOpenThread: (point: Point) => void;
+  compassRef?: CompassRefShape;
 };
 
 const PLANET_BASE_RADIUS = 0.09;
@@ -53,6 +56,7 @@ export function Galaxy(props: Props) {
             onHoverPlanet={(idx) => setHover((h) => ({ ...h, planetIdx: idx }))}
             hoveredIdx={hover.planetIdx}
           />
+          {props.compassRef && <CameraTracker compassRef={props.compassRef} />}
         </Suspense>
       </Canvas>
       {hovered && hoveredCluster && props.selectedCluster === hovered.clusterId && (
@@ -571,6 +575,27 @@ function CameraRig({
     }
     if (camera.position.distanceTo(camVec.current) < 0.05) {
       flying.current = false;
+    }
+  });
+  return null;
+}
+
+// Reads the camera each frame and writes yaw/pitch to a shared ref so the
+// out-of-canvas compass can render without React re-rendering on every tick.
+function CameraTracker({ compassRef }: { compassRef: CompassRefShape }) {
+  const dirVec = useRef(new THREE.Vector3());
+  useFrame(({ camera }) => {
+    camera.getWorldDirection(dirVec.current);
+    const d = dirVec.current;
+    // yaw: angle on the horizontal (XZ) plane, measured from −Z (= "north").
+    // atan2(x, -z) gives positive yaw when the camera looks east.
+    const yaw = Math.atan2(d.x, -d.z);
+    // pitch: above (+) or below (−) horizon. asin(-y) maps "looking down" to
+    // a negative pitch which we use to tilt the disc back.
+    const pitch = Math.asin(Math.max(-1, Math.min(1, -d.y)));
+    if (compassRef.current) {
+      compassRef.current.yaw = yaw;
+      compassRef.current.pitch = pitch;
     }
   });
   return null;
