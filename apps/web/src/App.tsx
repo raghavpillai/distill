@@ -147,6 +147,24 @@ export function App() {
         transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
         className="relative px-6 pt-5 pb-4 border-b border-[color:var(--color-ink-rail)]"
       >
+        {/* Stats anchored to the top-right corner of the page (above the title) */}
+        <motion.div
+          initial={{ opacity: 0, y: -3 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          className="absolute top-3 right-6"
+        >
+          <StatRow
+            items={[
+              { label: "prompts", value: stats.total },
+              { label: "skills", value: nSkills },
+              { label: "clusters", value: stats.n_clusters },
+              { label: "noise", value: `${noisePct.toFixed(0)}%` },
+              { label: "repos", value: stats.n_repos },
+            ]}
+          />
+        </motion.div>
+
         <div className="flex items-end gap-6 flex-wrap">
           <div className="min-w-0">
             <div className="smallcaps text-[color:var(--color-brass)]">
@@ -164,18 +182,6 @@ export function App() {
                 minute: "2-digit",
               })}
             </div>
-          </div>
-
-          <div className="ml-auto self-end pb-1">
-            <StatRow
-              items={[
-                { label: "prompts", value: stats.total },
-                { label: "skills", value: nSkills },
-                { label: "clusters", value: stats.n_clusters },
-                { label: "noise", value: `${noisePct.toFixed(0)}%` },
-                { label: "repos", value: stats.n_repos },
-              ]}
-            />
           </div>
         </div>
 
