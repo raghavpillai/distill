@@ -4,13 +4,7 @@ import type { Dataset, Point } from "./types";
 import { Galaxy } from "./Galaxy";
 import { SkillsPanel } from "./SkillsPanel";
 import { ConversationDrawer } from "./ConversationDrawer";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/Select";
+import { Combobox, type ComboboxItem } from "./ui/Combobox";
 
 export type CompassState = { yaw: number; pitch: number };
 
@@ -67,6 +61,33 @@ export function App() {
   // sessions that contributed to it (identified via the session_ids of its
   // exemplar turns).
   const SESSION_CLUSTER_ID_BASE = 10000;
+  // Repo combobox items: grouped by top-level prefix, "all repos" at top.
+  // Computed up here (above the err/data early returns) to keep hook count
+  // stable across renders.
+  const repoComboItems = useMemo<ComboboxItem[]>(() => {
+    const repos = data?.repos ?? [];
+    const items: ComboboxItem[] = [
+      { value: "__all__", label: `all repos (${repos.length})` },
+    ];
+    const buckets = new Map<string, string[]>();
+    for (const r of repos) {
+      const org = r.includes("/") ? r.split("/")[0]! : "other";
+      const arr = buckets.get(org) ?? [];
+      arr.push(r);
+      buckets.set(org, arr);
+    }
+    const big = [...buckets.entries()].filter(([, v]) => v.length >= 2);
+    const small = [...buckets.entries()].filter(([, v]) => v.length === 1);
+    big.sort((a, b) => b[1].length - a[1].length);
+    for (const [org, list] of big) {
+      for (const r of list) items.push({ value: r, label: r, group: org });
+    }
+    for (const [, list] of small) {
+      for (const r of list) items.push({ value: r, label: r, group: "other" });
+    }
+    return items;
+  }, [data]);
+
   const galaxyPoints = useMemo(() => {
     if (!data) return points.filter((p) => acceptedClusterIds.has(p.c));
     const direct = points.filter((p) => acceptedClusterIds.has(p.c));
@@ -187,22 +208,15 @@ export function App() {
 
         <div className="mt-4 flex items-center gap-3 text-xs">
           <label className="smallcaps text-[color:var(--color-dust)]">filter · repo</label>
-          <Select
+          <Combobox
             value={repoFilter || "__all__"}
             onValueChange={(v) => setRepoFilter(v === "__all__" ? "" : v)}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">all repos ({repos.length})</SelectItem>
-              {repos.map((r) => (
-                <SelectItem key={r} value={r}>
-                  {r}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            searchPlaceholder="search repos…"
+            items={repoComboItems}
+            renderValue={(it) =>
+              it?.value === "__all__" || !it ? `all repos (${repos.length})` : it.label
+            }
+          />
           <AnimatePresence>
             {selectedCluster !== null && (
               <motion.button
