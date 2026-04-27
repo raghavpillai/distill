@@ -91,10 +91,6 @@ body::after {
 /* Tabular numerals everywhere numbers matter */
 .tnum { font-variant-numeric: tabular-nums; }
 
-/* Plotly dark container tune */
-.plot-container .main-svg { background: transparent !important; }
-.plotly .hoverlayer .hovertext { filter: drop-shadow(0 8px 20px rgba(0,0,0,0.5)); }
-
 /* Thin scrollbars */
 *::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-thumb {
