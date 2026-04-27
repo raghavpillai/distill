@@ -19,6 +19,8 @@ The UI is an observatory: every accepted skill is a sun, every prompt is a
 planet around its cluster. Click a planet to open the original conversation
 at that turn.
 
+![focused skill](assets/screenshot-skill.png)
+
 ## Run it
 
 ```bash
