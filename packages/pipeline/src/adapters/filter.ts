@@ -12,7 +12,7 @@ import { stripSystemTags } from "../common.ts";
 const MIN_SUBSTANTIVE_CHARS = 30;
 
 const CONFIRMATION_PATTERNS: RegExp[] = [
-  /^(yes|yeah|yep|yup|yup\.|ok|okay|k+|sure|go|continue|proceed|cool|nice|thanks?|thank you|ty|great|perfect|good|done|right|correct|exactly|fine|works|ship it|kk|mhm|hmm+|oh|ah|hm)\b[\s.,!?👍🎉✅]*$/i,
+  /^(yes|yeah|yep|yup|yup\.|ok|okay|k+|sure|go|continue|proceed|cool|nice|thanks?|thank you|ty|great|perfect|good|done|right|correct|exactly|fine|works|ship it|kk|mhm|hmm+|oh|ah|hm)\b[\s.,!?👍🎉✅]*$/iu,
   /^(go|just)\s+(ahead|for it|on|do it|keep going)[\s.,!?]*$/i,
   /^let'?s (go|do it|continue|try( that)?)[\s.,!?]*$/i,
   /^(that'?s )?(great|perfect|amazing|awesome|good|fine|correct|it|right|all good)[\s.,!?]*$/i,

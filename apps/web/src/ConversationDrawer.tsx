@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { SessionFile } from "./types";
 
 type Props = {
@@ -34,7 +34,7 @@ export function ConversationDrawer({ sessionId, turnId, onClose }: Props) {
       targetRef.current?.scrollIntoView({ behavior: "instant", block: "center" });
     }, 360);
     return () => clearTimeout(t);
-  }, [data, turnId, expandAll]);
+  }, [data]);
 
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -46,7 +46,7 @@ export function ConversationDrawer({ sessionId, turnId, onClose }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const { visibleTurns, targetIdx, totalTurns, hiddenBefore, hiddenAfter } = useMemo(() => {
+  const { visibleTurns, totalTurns, hiddenBefore, hiddenAfter } = useMemo(() => {
     if (!data)
       return { visibleTurns: [], targetIdx: -1, totalTurns: 0, hiddenBefore: 0, hiddenAfter: 0 };
     const idx = data.turns.findIndex((t) => t.id === turnId);
@@ -127,12 +127,14 @@ export function ConversationDrawer({ sessionId, turnId, onClose }: Props) {
             </div>
             <div className="flex items-center gap-2">
               <button
+                type="button"
                 onClick={() => setExpandAll((v) => !v)}
                 className="mono text-[10.5px] tracking-[0.08em] px-2.5 py-1.5 border border-[color:var(--color-ink-rail)] rounded-[3px] text-[color:var(--color-ivory-soft)] hover:text-[color:var(--color-brass)] hover:border-[color:var(--color-brass-dim)] transition-colors"
               >
                 {expandAll ? "CONTEXT" : "FULL LOG"}
               </button>
               <button
+                type="button"
                 onClick={onClose}
                 aria-label="Close"
                 className="mono text-[10.5px] tracking-[0.08em] px-2.5 py-1.5 border border-[color:var(--color-ink-rail)] rounded-[3px] text-[color:var(--color-ivory-soft)] hover:text-[color:var(--color-copper)] hover:border-[color:var(--color-copper-dim)] transition-colors"
@@ -145,15 +147,15 @@ export function ConversationDrawer({ sessionId, turnId, onClose }: Props) {
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-3">
           {err && (
-            <div className="mono text-xs text-[color:var(--color-copper)]">failed to load: {err}</div>
+            <div className="mono text-xs text-[color:var(--color-copper)]">
+              failed to load: {err}
+            </div>
           )}
           {!data && !err && (
             <div className="mono text-xs text-[color:var(--color-dust)] italic">transcribing…</div>
           )}
 
-          {!!hiddenBefore && (
-            <Marginalia>⟨ {hiddenBefore} earlier turns folded ⟩</Marginalia>
-          )}
+          {!!hiddenBefore && <Marginalia>⟨ {hiddenBefore} earlier turns folded ⟩</Marginalia>}
 
           <AnimatePresence mode="popLayout">
             {visibleTurns.map((turn, i) => {
@@ -182,7 +184,9 @@ export function ConversationDrawer({ sessionId, turnId, onClose }: Props) {
                       animate={{ opacity: [0.0, 0.6, 0.15] }}
                       transition={{ duration: 1.8, ease: "easeOut" }}
                       className="absolute inset-0 rounded-[3px] pointer-events-none"
-                      style={{ boxShadow: "0 0 0 1px var(--color-brass), 0 0 30px var(--color-brass)" }}
+                      style={{
+                        boxShadow: "0 0 0 1px var(--color-brass), 0 0 30px var(--color-brass)",
+                      }}
                     />
                   )}
                   <div className="flex items-baseline gap-2 mb-2">
@@ -211,14 +215,11 @@ export function ConversationDrawer({ sessionId, turnId, onClose }: Props) {
             })}
           </AnimatePresence>
 
-          {!!hiddenAfter && (
-            <Marginalia>⟨ {hiddenAfter} later turns folded ⟩</Marginalia>
-          )}
+          {!!hiddenAfter && <Marginalia>⟨ {hiddenAfter} later turns folded ⟩</Marginalia>}
         </div>
       </motion.aside>
     </div>
   );
-  void targetIdx;
 }
 
 function Marginalia({ children }: { children: React.ReactNode }) {
@@ -252,7 +253,7 @@ const COLLAPSE_AT = 1200;
 
 function TurnBody({ text, collapsed: initialCollapsed }: { text: string; collapsed: boolean }) {
   const [open, setOpen] = useState(!initialCollapsed || text.length <= COLLAPSE_AT);
-  const shown = open ? text : text.slice(0, COLLAPSE_AT) + "…";
+  const shown = open ? text : `${text.slice(0, COLLAPSE_AT)}…`;
   return (
     <div>
       <pre className="font-body text-[13px] leading-[1.62] whitespace-pre-wrap text-[color:var(--color-ivory)]">
@@ -260,6 +261,7 @@ function TurnBody({ text, collapsed: initialCollapsed }: { text: string; collaps
       </pre>
       {text.length > COLLAPSE_AT && (
         <button
+          type="button"
           onClick={() => setOpen((v) => !v)}
           className="mt-2 smallcaps text-[color:var(--color-brass)] hover:text-[color:var(--color-brass-bright)] transition-colors"
         >
@@ -275,7 +277,7 @@ function shortenPath(p: string): string {
   if (p.startsWith(home)) {
     const rest = p.slice(home.length);
     const slash = rest.indexOf("/");
-    if (slash > 0) return "~" + rest.slice(slash);
+    if (slash > 0) return `~${rest.slice(slash)}`;
   }
   return p;
 }

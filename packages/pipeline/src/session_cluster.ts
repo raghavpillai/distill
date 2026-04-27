@@ -24,10 +24,10 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { embedMany } from "ai";
-import { UMAP } from "umap-js";
 import { HDBSCAN } from "hdbscan-ts";
-import { DATA_DIR, short, stripSystemTags } from "./common.ts";
+import { UMAP } from "umap-js";
 import { embedInfo, embedModel, isQwen3Embedding } from "./ai.ts";
+import { DATA_DIR, short, stripSystemTags } from "./common.ts";
 import type { Cluster, Turn } from "./types.ts";
 
 // Session-cluster IDs live above this offset so they can't collide with the
@@ -53,7 +53,7 @@ function applyInstruction(texts: string[]): string[] {
 function truncate(text: string): string {
   if (text.length <= MAX_INTENT_CHARS) return text;
   const half = Math.floor(MAX_INTENT_CHARS / 2);
-  return text.slice(0, half) + "\n...[truncated]...\n" + text.slice(-half);
+  return `${text.slice(0, half)}\n...[truncated]...\n${text.slice(-half)}`;
 }
 
 function normalize(v: number[]): number[] {
@@ -72,14 +72,62 @@ function cosine(a: number[], b: number[]): number {
 // Cheap c-TF-IDF-ish keyword picker: take the highest-frequency tokens across
 // the cluster members that are NOT frequent across all sessions. Good enough.
 const STOPWORDS = new Set([
-  "the", "and", "for", "with", "that", "this", "from", "have", "not", "can",
-  "you", "your", "are", "was", "will", "but", "all", "any", "one", "two",
-  "make", "need", "want", "get", "use", "run", "see", "fix", "just", "then",
-  "how", "what", "why", "when", "should", "would", "could", "does", "did",
-  "into", "about", "here", "there", "look", "also", "its", "them", "they",
+  "the",
+  "and",
+  "for",
+  "with",
+  "that",
+  "this",
+  "from",
+  "have",
+  "not",
+  "can",
+  "you",
+  "your",
+  "are",
+  "was",
+  "will",
+  "but",
+  "all",
+  "any",
+  "one",
+  "two",
+  "make",
+  "need",
+  "want",
+  "get",
+  "use",
+  "run",
+  "see",
+  "fix",
+  "just",
+  "then",
+  "how",
+  "what",
+  "why",
+  "when",
+  "should",
+  "would",
+  "could",
+  "does",
+  "did",
+  "into",
+  "about",
+  "here",
+  "there",
+  "look",
+  "also",
+  "its",
+  "them",
+  "they",
 ]);
 
-function topKeywords(texts: string[], globalDF: Map<string, number>, totalDocs: number, k = 8): string[] {
+function topKeywords(
+  texts: string[],
+  globalDF: Map<string, number>,
+  totalDocs: number,
+  k = 8,
+): string[] {
   const freq = new Map<string, number>();
   for (const t of texts) {
     const seen = new Set<string>();
@@ -103,9 +151,7 @@ function topKeywords(texts: string[], globalDF: Map<string, number>, totalDocs: 
 
 async function main(): Promise<void> {
   const turns = JSON.parse(readFileSync(`${DATA_DIR}turns.json`, "utf8")) as Turn[];
-  const existing = JSON.parse(
-    readFileSync(`${DATA_DIR}clusters.json`, "utf8"),
-  ) as Cluster[];
+  const existing = JSON.parse(readFileSync(`${DATA_DIR}clusters.json`, "utf8")) as Cluster[];
 
   // Group user prompts by session.
   const bySession = new Map<string, Turn[]>();
@@ -122,9 +168,7 @@ async function main(): Promise<void> {
     .map(([sid, arr]) => ({ sid, turns: arr.sort((a, b) => a.turn_idx - b.turn_idx) }));
 
   if (substantial.length < MIN_SESSION_CLUSTER_SIZE * 2) {
-    console.log(
-      `session-cluster: only ${substantial.length} substantial sessions — skipping`,
-    );
+    console.log(`session-cluster: only ${substantial.length} substantial sessions — skipping`);
     return;
   }
 
@@ -264,9 +308,7 @@ async function main(): Promise<void> {
       return cleaned[Math.floor(cleaned.length / 2)]!.t;
     });
     const exemplarIds = perSession.slice(0, 6).map((t) => t.id);
-    const exemplarTexts = perSession.slice(0, 6).map((t) =>
-      short(stripSystemTags(t.text), 280),
-    );
+    const exemplarTexts = perSession.slice(0, 6).map((t) => short(stripSystemTags(t.text), 280));
 
     const keywords = topKeywords(
       members.map((m) => stripSystemTags(m.turns.map((t) => t.text).join(" "))),
@@ -284,9 +326,7 @@ async function main(): Promise<void> {
       }
     }
     const span_days =
-      tsList.length >= 2
-        ? (Math.max(...tsList) - Math.min(...tsList)) / (1000 * 60 * 60 * 24)
-        : 0;
+      tsList.length >= 2 ? (Math.max(...tsList) - Math.min(...tsList)) / (1000 * 60 * 60 * 24) : 0;
 
     // Session-cluster acceptance is stricter than prompt-cluster acceptance.
     // Embedding a full concatenated-session text means unrelated sessions can
@@ -341,9 +381,10 @@ async function main(): Promise<void> {
   // from centroids.json (written by cluster.ts); session-cluster centroids
   // come from the session-intent vectors we just embedded.
   try {
-    const centroidsMap = JSON.parse(
-      readFileSync(`${DATA_DIR}centroids.json`, "utf8"),
-    ) as Record<string, number[]>;
+    const centroidsMap = JSON.parse(readFileSync(`${DATA_DIR}centroids.json`, "utf8")) as Record<
+      string,
+      number[]
+    >;
     const byIdVec = new Map<number, number[]>();
     for (const [k, v] of Object.entries(centroidsMap)) byIdVec.set(Number(k), v);
     // Session-cluster centroid = normalized mean of member session intent vectors.

@@ -15,12 +15,12 @@ export function normalizeCwd(cwd: string): string {
 export function repoLabel(cwdNorm: string): string {
   if (!cwdNorm) return "(unknown)";
   const parts = cwdNorm.split("/").filter(Boolean);
-  return parts.length >= 2 ? parts.slice(-2).join("/") : parts[0] ?? "(unknown)";
+  return parts.length >= 2 ? parts.slice(-2).join("/") : (parts[0] ?? "(unknown)");
 }
 
 export function short(t: string, n = 260): string {
   const s = t.replaceAll("\r", " ").trim();
-  return s.length <= n ? s : s.slice(0, n - 1) + "…";
+  return s.length <= n ? s : `${s.slice(0, n - 1)}…`;
 }
 
 // Both Claude Code and Codex CLI inject wrapper tags into the user's message

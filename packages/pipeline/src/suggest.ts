@@ -16,8 +16,8 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { embedMany, generateObject } from "ai";
 import { z } from "zod";
-import { DATA_DIR } from "./common.ts";
 import { chatInfo, chatModel, embedModel } from "./ai.ts";
+import { DATA_DIR } from "./common.ts";
 import { findDuplicate, loadInstalledSkills } from "./skill_diff.ts";
 import type { Cluster, SkillProposal } from "./types.ts";
 
@@ -89,7 +89,9 @@ const WEAK_NAME_TOKENS = new Set([
 ]);
 
 const proposalSchema = z.object({
-  accepted: z.boolean().describe("true only if this cluster is a real multi-step workflow that belongs as a skill"),
+  accepted: z
+    .boolean()
+    .describe("true only if this cluster is a real multi-step workflow that belongs as a skill"),
   reason: z.string().describe("one sentence explaining the verdict"),
   conflicts_with_bundled: z
     .string()
@@ -104,7 +106,9 @@ const proposalSchema = z.object({
     .describe("1 = vague generic verb, 5 = names concrete tools/artifacts the user actually uses"),
   name: z.string().describe("kebab-case, 2-4 words; empty if rejected"),
   description: z.string().describe("one sentence, ≤160 chars, mentions concrete tools/artifacts"),
-  when_to_use: z.string().describe("2-3 actual trigger phrases, quoted from the exemplars when possible"),
+  when_to_use: z
+    .string()
+    .describe("2-3 actual trigger phrases, quoted from the exemplars when possible"),
   when_not_to_use: z.string().describe("1-2 sentences on cases that should NOT trigger this skill"),
   body_md: z
     .string()
@@ -253,9 +257,12 @@ Audit this cluster.`,
       conflicts_with_bundled: "",
       specificity: 4,
       name: "audit-pr-readiness",
-      description: "Audit a specific pull request's CI status, review threads, and merge-readiness using gh CLI",
-      when_to_use: "\"is PR #X ready to merge\", \"did the checks pass on this PR\", \"walk through this PR\"",
-      when_not_to_use: "When creating a new PR (use /pull-request or /commit), or when the user wants a line-by-line code review of their diff (use /review).",
+      description:
+        "Audit a specific pull request's CI status, review threads, and merge-readiness using gh CLI",
+      when_to_use:
+        '"is PR #X ready to merge", "did the checks pass on this PR", "walk through this PR"',
+      when_not_to_use:
+        "When creating a new PR (use /pull-request or /commit), or when the user wants a line-by-line code review of their diff (use /review).",
       body_md: `# Audit PR Readiness
 
 ## Trigger
@@ -471,8 +478,7 @@ async function main(): Promise<void> {
     // with a prompt that tells the model to draft it anyway. Thresholds are
     // generous for the demo — the structural gates below catch bad drafts.
     const isHighSignal =
-      (c.cohesion >= 0.85 && c.size >= 10) ||
-      (c.cohesion >= 0.65 && c.size >= 12);
+      (c.cohesion >= 0.85 && c.size >= 10) || (c.cohesion >= 0.65 && c.size >= 12);
     const forceRerolled = !first.accepted && isHighSignal;
     let llm = first;
     if (forceRerolled) {
@@ -480,7 +486,7 @@ async function main(): Promise<void> {
       if (redraft) {
         llm = redraft;
         llm.accepted = true;
-        if (!llm.reason || !llm.reason.trim()) {
+        if (!llm.reason?.trim()) {
           llm.reason = `Force-drafted from high-signal cluster (cohesion ${c.cohesion.toFixed(2)}, n=${c.size}).`;
         }
         console.log(
@@ -518,13 +524,20 @@ async function main(): Promise<void> {
       } else if (countSteps(p.body_md) < 3) {
         accepted = false;
         p.reason = "Needs at least 3 steps to be a workflow.";
-      } else if (/local-command-(stdout|stderr|caveat)|system-reminder|task-notification|<background-bash/i.test(p.body_md) ||
-                 /local-command-(stdout|stderr|caveat)|system-reminder|task-notification/i.test(p.when_to_use)) {
+      } else if (
+        /local-command-(stdout|stderr|caveat)|system-reminder|task-notification|<background-bash/i.test(
+          p.body_md,
+        ) ||
+        /local-command-(stdout|stderr|caveat)|system-reminder|task-notification/i.test(
+          p.when_to_use,
+        )
+      ) {
         // Defensive: if the generated SKILL.md body references Claude Code
         // system-injected tags, the cluster was built on polluted signal and
         // the skill would fire on harness exhaust rather than user intent.
         accepted = false;
-        p.reason = "Body/trigger references system-injected tags — cluster is pollution, not a real workflow.";
+        p.reason =
+          "Body/trigger references system-injected tags — cluster is pollution, not a real workflow.";
       } else if (p.specificity < minSp) {
         accepted = false;
         p.reason = `Trigger too vague (specificity ${p.specificity} < ${minSp}) — would cause silent failures.`;
@@ -620,7 +633,12 @@ async function consolidateBySemantics(
 
   // Union-find on cosine ≥ threshold.
   const parent = accepted.map((_, i) => i);
-  const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i]!)));
+  const find = (i: number): number => {
+    if (parent[i] === i) return i;
+    const root = find(parent[i]!);
+    parent[i] = root;
+    return root;
+  };
   const union = (i: number, j: number) => {
     const ri = find(i);
     const rj = find(j);
@@ -686,10 +704,7 @@ const consolidateSchema = z.object({
     .describe("merge groups; empty array if nothing should be merged"),
 });
 
-async function consolidateByLLM(
-  proposals: SkillProposal[],
-  clusters: Cluster[],
-): Promise<void> {
+async function consolidateByLLM(proposals: SkillProposal[], clusters: Cluster[]): Promise<void> {
   const accepted = proposals.filter((p) => p.accepted);
   if (accepted.length < 2) return;
   const clusterById = new Map(clusters.map((c) => [c.id, c]));
@@ -765,18 +780,13 @@ const valueSchema = z.object({
           .describe(
             "true if the skill encodes a multi-step procedure that adds value beyond the model's default behavior; false if it's a lookup/checkpoint/generic-debug cluster",
           ),
-        reason: z
-          .string()
-          .describe("one sentence; only matters if useful=false"),
+        reason: z.string().describe("one sentence; only matters if useful=false"),
       }),
     )
     .describe("one entry per input skill — every cluster_id must be present"),
 });
 
-async function valueCheckByLLM(
-  proposals: SkillProposal[],
-  clusters: Cluster[],
-): Promise<void> {
+async function valueCheckByLLM(proposals: SkillProposal[], clusters: Cluster[]): Promise<void> {
   const accepted = proposals.filter((p) => p.accepted);
   if (accepted.length < 2) return;
   const clusterById = new Map(clusters.map((c) => [c.id, c]));
@@ -821,7 +831,11 @@ Be honest — false positives here are worse than missed acceptances.`;
       const exs = (cl?.exemplars ?? []).slice(0, 4).map((ex, i) => {
         const star = ex.match(/\[user\s*★\]\s*([^\n]+(?:\n(?!\[)[^\n]+)*)/);
         const t = star ? star[1] : ex;
-        return `    ex${i + 1}: ${t.replace(/<[^>]+>[\s\S]*?<\/[^>]+>/g, "").replace(/\s+/g, " ").trim().slice(0, 220)}`;
+        return `    ex${i + 1}: ${t
+          .replace(/<[^>]+>[\s\S]*?<\/[^>]+>/g, "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 220)}`;
       });
       return [
         `cluster_id=${p.cluster_id}  /${p.name}`,

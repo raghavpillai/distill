@@ -7,8 +7,8 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { embedMany } from "ai";
-import { DATA_DIR, stripSystemTags } from "./common.ts";
 import { embedInfo, embedModel, isQwen3Embedding } from "./ai.ts";
+import { DATA_DIR, stripSystemTags } from "./common.ts";
 import type { Turn } from "./types.ts";
 
 const MAX_CHARS = 3000;
@@ -22,7 +22,7 @@ const CLUSTER_INSTRUCTION =
 function truncate(text: string): string {
   if (text.length <= MAX_CHARS) return text;
   const half = Math.floor(MAX_CHARS / 2);
-  return text.slice(0, half) + "\n...[truncated]...\n" + text.slice(-half);
+  return `${text.slice(0, half)}\n...[truncated]...\n${text.slice(-half)}`;
 }
 
 function applyInstruction(texts: string[]): string[] {

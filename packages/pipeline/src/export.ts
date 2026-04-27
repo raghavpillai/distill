@@ -4,10 +4,9 @@
  * data/web.json is small (clusters + points + stats); the web fetches it once.
  * data/sessions/<session_id>.json is fetched on demand when the user clicks a point.
  */
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { DATA_DIR } from "./common.ts";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chatInfo, embedInfo } from "./ai.ts";
+import { DATA_DIR } from "./common.ts";
 import type { Cluster, Point, Session, SkillProposal, Turn, WebBundle } from "./types.ts";
 
 function splitProviderModel(s: string): { provider: string; model: string } {
@@ -66,7 +65,9 @@ function main(): void {
 
   writeFileSync(`${DATA_DIR}web.json`, JSON.stringify(bundle));
   const mb = (Buffer.byteLength(JSON.stringify(bundle)) / 1024 / 1024).toFixed(2);
-  console.log(`wrote ${DATA_DIR}web.json  (${points.length} points, ${clusters.length} clusters, ${mb} MB)`);
+  console.log(
+    `wrote ${DATA_DIR}web.json  (${points.length} points, ${clusters.length} clusters, ${mb} MB)`,
+  );
 
   // Per-session files for the drawer.
   const sessionsDir = `${DATA_DIR}sessions/`;

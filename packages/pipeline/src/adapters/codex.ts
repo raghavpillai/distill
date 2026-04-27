@@ -70,21 +70,19 @@ function parseFile(file: string): Turn[] {
     }
     if (rec.type === "session_meta") {
       const p = rec.payload ?? {};
-      session_id = String(p["id"] ?? "");
-      cwd = String(p["cwd"] ?? "");
-      started_at = String(p["timestamp"] ?? rec.timestamp ?? "");
+      session_id = String(p.id ?? "");
+      cwd = String(p.cwd ?? "");
+      started_at = String(p.timestamp ?? rec.timestamp ?? "");
       continue;
     }
     if (rec.type !== "response_item") continue;
     const p = rec.payload ?? {};
-    if (p["type"] !== "message") continue;
-    const role = p["role"] as string | undefined;
+    if (p.type !== "message") continue;
+    const role = p.role as string | undefined;
     if (role !== "user" && role !== "assistant") continue;
-    const content = (p["content"] ?? []) as Array<{ type?: string; text?: string }>;
+    const content = (p.content ?? []) as Array<{ type?: string; text?: string }>;
     const text = content
-      .filter(
-        (c) => c.type === "input_text" || c.type === "output_text" || c.type === "text",
-      )
+      .filter((c) => c.type === "input_text" || c.type === "output_text" || c.type === "text")
       .map((c) => c.text ?? "")
       .join("\n")
       .trim();

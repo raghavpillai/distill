@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import type { Dataset, Point } from "./types";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ConversationDrawer } from "./ConversationDrawer";
 import { Galaxy } from "./Galaxy";
 import { SkillsPanel } from "./SkillsPanel";
-import { ConversationDrawer } from "./ConversationDrawer";
+import type { Dataset, Point } from "./types";
 import { Combobox, type ComboboxItem } from "./ui/Combobox";
 
 export type CompassState = { yaw: number; pitch: number };
@@ -66,9 +66,7 @@ export function App() {
   // stable across renders.
   const repoComboItems = useMemo<ComboboxItem[]>(() => {
     const repos = data?.repos ?? [];
-    const items: ComboboxItem[] = [
-      { value: "__all__", label: `all repos (${repos.length})` },
-    ];
+    const items: ComboboxItem[] = [{ value: "__all__", label: `all repos (${repos.length})` }];
     const buckets = new Map<string, string[]>();
     for (const r of repos) {
       const org = r.includes("/") ? r.split("/")[0]! : "other";
@@ -207,7 +205,7 @@ export function App() {
         </div>
 
         <div className="mt-4 flex items-center gap-3 text-xs">
-          <label className="smallcaps text-[color:var(--color-dust)]">filter · repo</label>
+          <span className="smallcaps text-[color:var(--color-dust)]">filter · repo</span>
           <Combobox
             value={repoFilter || "__all__"}
             onValueChange={(v) => setRepoFilter(v === "__all__" ? "" : v)}
@@ -259,6 +257,7 @@ export function App() {
               compass itself (the wrapper stays non-interactive). */}
           <div className="absolute top-4 left-4 select-none pointer-events-none">
             <button
+              type="button"
               onClick={recenter}
               title="Recenter view"
               aria-label="Recenter view"
@@ -318,14 +317,10 @@ function StatRow({ items }: { items: StatItem[] }) {
       {items.map((it, i) => (
         <span key={it.label} className="flex items-baseline gap-1.5">
           {i > 0 && (
-            <span className="text-[color:var(--color-brass-dim)]/50 mr-2 select-none">
-              ·
-            </span>
+            <span className="text-[color:var(--color-brass-dim)]/50 mr-2 select-none">·</span>
           )}
           <StatNumber value={it.value} />
-          <span className="smallcaps text-[10px] text-[color:var(--color-dust)]">
-            {it.label}
-          </span>
+          <span className="smallcaps text-[10px] text-[color:var(--color-dust)]">{it.label}</span>
         </span>
       ))}
     </div>
@@ -344,7 +339,7 @@ function StatNumber({ value }: { value: number | string }) {
     let raf = 0;
     const tick = (t: number) => {
       const e = Math.min(1, (t - start) / dur);
-      const eased = 1 - Math.pow(1 - e, 3);
+      const eased = 1 - (1 - e) ** 3;
       setDisplay(Math.round(value * eased).toLocaleString());
       if (e < 1) raf = requestAnimationFrame(tick);
     };
@@ -352,21 +347,14 @@ function StatNumber({ value }: { value: number | string }) {
     return () => cancelAnimationFrame(raf);
   }, [value]);
   return (
-    <span className="mono tnum text-[12px] text-[color:var(--color-ivory-soft)]">
-      {display}
-    </span>
+    <span className="mono tnum text-[12px] text-[color:var(--color-ivory-soft)]">{display}</span>
   );
 }
-
 
 // Compass that tracks the 3D camera. The disc tilts (CSS perspective) on
 // camera pitch and rotates on yaw, so the "N" needle always points toward
 // the world-space "north" (−Z) regardless of where you've orbited.
-function CompassRose({
-  compassRef,
-}: {
-  compassRef: React.RefObject<CompassState>;
-}) {
+function CompassRose({ compassRef }: { compassRef: React.RefObject<CompassState> }) {
   const discRef = useRef<HTMLDivElement | null>(null);
   const labelsRef = useRef<HTMLDivElement | null>(null);
 
@@ -379,8 +367,7 @@ function CompassRose({
       // The disc tilts back as the camera looks down at the galaxy. The needle
       // (rendered inside the disc) rotates so "north" stays in world space.
       if (discRef.current) {
-        discRef.current.style.transform =
-          `rotateX(${pitchDeg}deg) rotateZ(${-yawDeg}deg)`;
+        discRef.current.style.transform = `rotateX(${pitchDeg}deg) rotateZ(${-yawDeg}deg)`;
       }
       // Cardinal labels stay upright (counter-rotate) but ride the tilt with
       // the disc so they look like they're painted on it.
@@ -394,10 +381,7 @@ function CompassRose({
   }, [compassRef]);
 
   return (
-    <div
-      style={{ perspective: "240px", perspectiveOrigin: "50% 60%" }}
-      className="opacity-70"
-    >
+    <div style={{ perspective: "240px", perspectiveOrigin: "50% 60%" }} className="opacity-70">
       <div
         ref={discRef}
         style={{
@@ -413,8 +397,11 @@ function CompassRose({
           width="56"
           height="56"
           viewBox="0 0 56 56"
+          role="img"
+          aria-labelledby="compassTitle"
           style={{ position: "absolute", inset: 0 }}
         >
+          <title id="compassTitle">3D camera compass</title>
           <defs>
             <radialGradient id="cmpGrad" cx="50%" cy="50%" r="50%">
               <stop offset="0%" stopColor="rgba(212, 168, 90, 0.08)" />
@@ -434,7 +421,7 @@ function CompassRose({
               const r2 = i % 3 === 0 ? 18 : 20;
               return (
                 <line
-                  key={i}
+                  key={`tick-${a.toFixed(3)}`}
                   x1={28 + Math.sin(a) * r1}
                   y1={28 - Math.cos(a) * r1}
                   x2={28 + Math.sin(a) * r2}
@@ -445,17 +432,9 @@ function CompassRose({
             })}
           </g>
           {/* Bright north needle */}
-          <polygon
-            points="28,5 26.4,28 29.6,28"
-            fill="var(--color-brass)"
-            opacity="0.95"
-          />
+          <polygon points="28,5 26.4,28 29.6,28" fill="var(--color-brass)" opacity="0.95" />
           {/* South needle (dim) */}
-          <polygon
-            points="28,51 27,28 29,28"
-            fill="var(--color-brass-dim)"
-            opacity="0.6"
-          />
+          <polygon points="28,51 27,28 29,28" fill="var(--color-brass-dim)" opacity="0.6" />
           <circle cx="28" cy="28" r="1.6" fill="var(--color-brass)" />
         </svg>
         {/* Cardinal labels — counter-rotate on yaw so "N" reads right-side-up */}
@@ -551,10 +530,14 @@ function CornerTicks() {
                 background: "var(--color-brass-dim)",
                 opacity: 0.7,
                 ...Object.fromEntries(
-                  tick.split(";").map((s) => s.trim()).filter(Boolean).map((s) => {
-                    const [k, v] = s.split(":").map((x) => x.trim());
-                    return [k!.replace(/-(\w)/g, (_m, c) => c.toUpperCase()), v];
-                  }),
+                  tick
+                    .split(";")
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                    .map((s) => {
+                      const [k, v] = s.split(":").map((x) => x.trim());
+                      return [k!.replace(/-(\w)/g, (_m, c) => c.toUpperCase()), v];
+                    }),
                 ),
               } as React.CSSProperties
             }

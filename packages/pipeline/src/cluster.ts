@@ -6,8 +6,8 @@
  *          data/points.json    (per-prompt 2D coords + cluster label)
  */
 import { readFileSync, writeFileSync } from "node:fs";
-import { UMAP } from "umap-js";
 import { HDBSCAN } from "hdbscan-ts";
+import { UMAP } from "umap-js";
 import { DATA_DIR, short, stripSystemTags } from "./common.ts";
 import type { Cluster, Point, Turn } from "./types.ts";
 
@@ -60,8 +60,7 @@ function runUmap(
   minDist: number,
   nNeighborsOverride?: number,
 ): number[][] {
-  const neighbors =
-    nNeighborsOverride ?? Math.min(UMAP_NEIGHBORS, Math.max(2, vectors.length - 1));
+  const neighbors = nNeighborsOverride ?? Math.min(UMAP_NEIGHBORS, Math.max(2, vectors.length - 1));
   const umap = new UMAP({
     nComponents,
     nNeighbors: Math.min(neighbors, Math.max(2, vectors.length - 1)),
@@ -87,7 +86,9 @@ const STOPWORDS = new Set<string>(
 type CTFIDFRow = { cid: number; keywords: string[]; tfidfLabel: string };
 
 function cTfIdf(texts: Record<number, string[]>): Record<number, CTFIDFRow> {
-  const clusterIds = Object.keys(texts).map(Number).sort((a, b) => a - b);
+  const clusterIds = Object.keys(texts)
+    .map(Number)
+    .sort((a, b) => a - b);
   // Term freq within each cluster (bag of words, unigrams + bigrams).
   const clusterTerms = new Map<number, Map<string, number>>();
   const df = new Map<string, number>(); // number of clusters a term appears in
@@ -165,7 +166,7 @@ function main(): void {
       if (!cleaned) continue;
       const label = turn.role === "assistant" ? "claude" : turn.role;
       const marker = turn.id === centerTurnId ? " ★" : "";
-      const body = cleaned.length > 320 ? cleaned.slice(0, 320) + "…" : cleaned;
+      const body = cleaned.length > 320 ? `${cleaned.slice(0, 320)}…` : cleaned;
       lines.push(`[${label}${marker}] ${body}`);
     }
     return lines.join("\n");
@@ -309,7 +310,8 @@ function main(): void {
   const cidToIdx: Record<number, number[]> = {};
   labels.forEach((l, i) => {
     if (l === -1) return;
-    (cidToIdx[l] ??= []).push(i);
+    if (!cidToIdx[l]) cidToIdx[l] = [];
+    cidToIdx[l].push(i);
   });
   const cidToTexts: Record<number, string[]> = {};
   for (const [cidStr, idxs] of Object.entries(cidToIdx)) {
@@ -383,7 +385,7 @@ function main(): void {
       const pairs: [number, number][] = [];
       const n = idxs.length;
       const MAX_PAIRS = 60;
-      if (n * (n - 1) / 2 <= MAX_PAIRS) {
+      if ((n * (n - 1)) / 2 <= MAX_PAIRS) {
         for (let a = 0; a < n; a++)
           for (let b = a + 1; b < n; b++) pairs.push([idxs[a]!, idxs[b]!]);
       } else {
@@ -429,9 +431,7 @@ function main(): void {
     // dominates — this is usually a long in-context project rather than a
     // pattern that fires across many sessions.
     const max_session_fraction =
-      idxs.length > 0
-        ? Math.max(0, ...sessionCounts.values()) / idxs.length
-        : 0;
+      idxs.length > 0 ? Math.max(0, ...sessionCounts.values()) / idxs.length : 0;
     // continuation_count: exemplars starting with (or containing) the Claude
     // Code "This session is being continued from a previous conversation"
     // banner are rooted in one long context-compacted session. ≥2 of these in
@@ -632,7 +632,9 @@ function main(): void {
 
   writeFileSync(`${DATA_DIR}clusters.json`, JSON.stringify(clusters));
   writeFileSync(`${DATA_DIR}points.json`, JSON.stringify(points));
-  console.log(`wrote ${DATA_DIR}clusters.json (${clusters.length}) and ${DATA_DIR}points.json (${points.length})`);
+  console.log(
+    `wrote ${DATA_DIR}clusters.json (${clusters.length}) and ${DATA_DIR}points.json (${points.length})`,
+  );
 }
 
 main();

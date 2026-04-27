@@ -1,7 +1,7 @@
-import { forwardRef, useState, type ReactNode } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { Command } from "cmdk";
-import { ChevronDown, Check } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
+import { forwardRef, type ReactNode, useState } from "react";
 import { cn } from "./cn";
 
 /**
@@ -60,6 +60,7 @@ export const Combobox = forwardRef<HTMLButtonElement, Props>(function Combobox(
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
         <button
+          type="button"
           ref={ref}
           aria-expanded={open}
           className={cn(
@@ -77,7 +78,7 @@ export const Combobox = forwardRef<HTMLButtonElement, Props>(function Combobox(
           )}
         >
           <span className="truncate">
-            {renderValue ? renderValue(current) : current?.label ?? placeholder}
+            {renderValue ? renderValue(current) : (current?.label ?? placeholder)}
           </span>
           <ChevronDown
             aria-hidden

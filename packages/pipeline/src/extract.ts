@@ -9,9 +9,9 @@
  * orchestrator that runs each adapter and merges the results.
  */
 import { writeFileSync } from "node:fs";
+import { ADAPTERS } from "./adapters/index.ts";
 import { DATA_DIR } from "./common.ts";
 import type { Session, Turn } from "./types.ts";
-import { ADAPTERS } from "./adapters/index.ts";
 
 function main(): void {
   const turns: Turn[] = [];
@@ -47,9 +47,7 @@ function main(): void {
   for (const [sid, arr] of perSession) {
     if (!arr.length) continue;
     arr.sort((a, b) =>
-      a.timestamp && b.timestamp
-        ? a.timestamp.localeCompare(b.timestamp)
-        : a.turn_idx - b.turn_idx,
+      a.timestamp && b.timestamp ? a.timestamp.localeCompare(b.timestamp) : a.turn_idx - b.turn_idx,
     );
     arr.forEach((t, i) => {
       t.turn_idx = i;

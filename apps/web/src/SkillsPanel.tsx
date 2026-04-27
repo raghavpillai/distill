@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
-import type { Cluster, Point, SkillProposal } from "./types";
 import { clusterColor } from "./colors";
+import type { Cluster, Point, SkillProposal } from "./types";
 import { Input } from "./ui/Input";
 
 type Props = {
@@ -170,6 +170,7 @@ export function SkillsPanel({
                     className="relative border-b border-[color:var(--color-ink-rail)]/60"
                   >
                     <button
+                      type="button"
                       onClick={() => onSelectCluster(selected ? null : c.id)}
                       className={
                         "w-full text-left px-4 py-3 group transition-colors " +
@@ -275,6 +276,7 @@ export function SkillsPanel({
                   className="relative border-b border-[color:var(--color-ink-rail)]/60"
                 >
                   <button
+                    type="button"
                     onClick={() => onSelectCluster(selected ? null : c.id)}
                     className={
                       "w-full text-left px-4 py-3 flex items-center gap-2.5 " +
@@ -300,10 +302,7 @@ export function SkillsPanel({
                       {c.label}
                     </span>
                     {badge && (
-                      <span
-                        className={`mono text-[10px] ${badge.tone}`}
-                        title={badge.title ?? ""}
-                      >
+                      <span className={`mono text-[10px] ${badge.tone}`} title={badge.title ?? ""}>
                         {badge.text}
                       </span>
                     )}
@@ -318,11 +317,7 @@ export function SkillsPanel({
                         className="overflow-hidden"
                       >
                         <div className="px-4 pb-4 pl-[34px]">
-                          <ConvoTree
-                            clusterId={c.id}
-                            points={points}
-                            onOpenThread={onOpenThread}
-                          />
+                          <ConvoTree clusterId={c.id} points={points} onOpenThread={onOpenThread} />
                         </div>
                       </motion.div>
                     )}
@@ -348,6 +343,7 @@ function TabBtn({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       className={
         "mono text-[10.5px] px-3 py-1.5 tracking-[0.08em] transition-colors " +
@@ -392,9 +388,7 @@ function SkillCard({
 
       <details className="group" open={false}>
         <summary className="cursor-pointer list-none smallcaps text-[color:var(--color-brass)] hover:text-[color:var(--color-brass-bright)] select-none">
-          <span className="inline-block transition-transform group-open:rotate-90 mr-1.5">
-            ▸
-          </span>
+          <span className="inline-block transition-transform group-open:rotate-90 mr-1.5">▸</span>
           proposed skill details
         </summary>
         <dl className="mt-2 space-y-1.5 pl-4 border-l border-[color:var(--color-ink-rail)]">
@@ -410,11 +404,7 @@ function SkillCard({
         </dl>
       </details>
 
-      <ConvoTree
-        clusterId={cluster.id}
-        points={points}
-        onOpenThread={onOpenThread}
-      />
+      <ConvoTree clusterId={cluster.id} points={points} onOpenThread={onOpenThread} />
     </div>
   );
 }
@@ -449,14 +439,9 @@ function KvRow({
 function MetaRow({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
   return (
     <div className="flex gap-3 text-[11.5px]">
-      <dt className="smallcaps text-[color:var(--color-dust)] flex-none w-[84px] pt-px">
-        {k}
-      </dt>
+      <dt className="smallcaps text-[color:var(--color-dust)] flex-none w-[84px] pt-px">{k}</dt>
       <dd
-        className={
-          (mono ? "mono " : "") +
-          "text-[color:var(--color-ivory-soft)] break-words leading-[1.55]"
-        }
+        className={`${mono ? "mono " : ""}text-[color:var(--color-ivory-soft)] break-words leading-[1.55]`}
       >
         {v}
       </dd>
@@ -518,8 +503,8 @@ function ConvoTree({
   return (
     <div className="pt-1">
       <div className="smallcaps text-[color:var(--color-brass)] mb-2">
-        {sessions.length} conversation{sessions.length !== 1 ? "s" : ""} ·{" "}
-        {totalTurns} turn{totalTurns !== 1 ? "s" : ""}
+        {sessions.length} conversation{sessions.length !== 1 ? "s" : ""} · {totalTurns} turn
+        {totalTurns !== 1 ? "s" : ""}
       </div>
       <ul className="space-y-0.5">
         {sessions.map((s) => (
@@ -546,6 +531,7 @@ function ConvoNode({
   return (
     <li className="group/node">
       <button
+        type="button"
         onClick={() => setOpen((v) => !v)}
         className="w-full text-left pl-1 pr-2 py-1 flex items-center gap-2 hover:bg-[color:var(--color-ink-rail)]/25 transition-colors rounded-[2px]"
       >
@@ -576,12 +562,7 @@ function ConvoNode({
             className="overflow-hidden ml-[7px] border-l border-[color:var(--color-ink-rail)]"
           >
             {session.pts.map((p, i) => (
-              <TurnRow
-                key={p.id}
-                index={i}
-                turn={p}
-                onOpenThread={onOpenThread}
-              />
+              <TurnRow key={p.id} index={i} turn={p} onOpenThread={onOpenThread} />
             ))}
           </motion.ul>
         )}
@@ -603,6 +584,7 @@ function TurnRow({
   return (
     <li className="group/turn">
       <button
+        type="button"
         onClick={() => onOpenThread(turn.id)}
         className="w-full text-left pl-3 pr-2 py-1 flex items-start gap-2 hover:bg-[color:var(--color-ink-rail)]/20 transition-colors"
         title="jump to this turn in the log"

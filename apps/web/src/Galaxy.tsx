@@ -1,12 +1,12 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Billboard, OrbitControls, Stars, Text } from "@react-three/drei";
+import { Canvas, type ThreeEvent, useFrame, useThree } from "@react-three/fiber";
 import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import { KernelSize } from "postprocessing";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import type { Cluster, Point } from "./types";
 import { clusterColor } from "./colors";
-import { planetsFromPoints, type Planet } from "./orbits";
+import { type Planet, planetsFromPoints } from "./orbits";
+import type { Cluster, Point } from "./types";
 
 type Hover = { planetIdx: number | null; mouseX: number; mouseY: number };
 
@@ -31,10 +31,13 @@ const HOVER_PLANET_RADIUS = 0.26;
 export function Galaxy(props: Props) {
   const [hover, setHover] = useState<Hover>({ planetIdx: null, mouseX: 0, mouseY: 0 });
   const hoverPlanetRef = useRef<{ planets: Planet[]; clusters: Cluster[] } | null>(null);
-  const { planets } = useMemo(() => planetsFromPoints(props.points, props.clusters), [props.points, props.clusters]);
+  const { planets } = useMemo(
+    () => planetsFromPoints(props.points, props.clusters),
+    [props.points, props.clusters],
+  );
   hoverPlanetRef.current = { planets, clusters: props.clusters };
 
-  const hovered = hover.planetIdx !== null ? planets[hover.planetIdx] ?? null : null;
+  const hovered = hover.planetIdx !== null ? (planets[hover.planetIdx] ?? null) : null;
   const hoveredCluster = hovered ? props.clusters.find((c) => c.id === hovered.clusterId) : null;
 
   return (
@@ -69,10 +72,7 @@ export function Galaxy(props: Props) {
             top: Math.min(window.innerHeight - 140, hover.mouseY + 14),
           }}
         >
-          <div
-            className="smallcaps"
-            style={{ color: clusterColor(hovered.clusterId) }}
-          >
+          <div className="smallcaps" style={{ color: clusterColor(hovered.clusterId) }}>
             #{String(hovered.clusterId).padStart(3, "0")} · {hoveredCluster.label}
           </div>
           <div className="mt-1 mono text-[10px] text-[color:var(--color-dust)] tracking-[0.08em]">
@@ -108,11 +108,7 @@ function Scene({
     const X_SCALE = 1.7;
     return clusters.map((c) => ({
       ...c,
-      center3d: [c.center3d[0] * X_SCALE, c.center3d[1], c.center3d[2]] as [
-        number,
-        number,
-        number,
-      ],
+      center3d: [c.center3d[0] * X_SCALE, c.center3d[1], c.center3d[2]] as [number, number, number],
     }));
   }, [clusters]);
 
@@ -335,17 +331,16 @@ function Planets({
   // Per-planet accumulated angle. Using delta-time accumulation (instead of
   // `phase + t * speed`) keeps orbits continuous when the speed multiplier
   // changes on selection — no jump to a new angle.
-  const accumAngles = useMemo(
-    () => planets.map((p) => p.phase),
-    [planets],
-  );
+  const accumAngles = useMemo(() => planets.map((p) => p.phase), [planets]);
 
   // Precompute per-planet cluster center + base color.
   const centers = useMemo(
     () =>
       planets.map((p) => {
         const c = clusterById.get(p.clusterId);
-        return c ? (c.center3d as [number, number, number]) : ([0, 0, 0] as [number, number, number]);
+        return c
+          ? (c.center3d as [number, number, number])
+          : ([0, 0, 0] as [number, number, number]);
       }),
     [planets, clusterById],
   );
@@ -510,11 +505,14 @@ function OrbitRings({
   const ringColor = useMemo(() => new THREE.Color(color), [color]);
   return (
     <group position={center}>
-      {planets.map((p, i) => {
+      {planets.map((p) => {
         // Build rotated ring: orbit plane is rotated by tilt (x) then nodeAxis (y).
         const rot = new THREE.Euler(p.tilt, p.nodeAxis, 0, "YXZ");
         return (
-          <mesh key={p.id + i} rotation={rot as unknown as [number, number, number]}>
+          <mesh
+            key={`${p.id}:${p.orbitRadius}`}
+            rotation={rot as unknown as [number, number, number]}
+          >
             <ringGeometry args={[p.orbitRadius - 0.003, p.orbitRadius + 0.003, 96]} />
             <meshBasicMaterial
               color={ringColor}
@@ -618,4 +616,3 @@ function CameraTracker({ compassRef }: { compassRef: CompassRefShape }) {
   });
   return null;
 }
-

@@ -5,8 +5,8 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { generateObject } from "ai";
 import { z } from "zod";
-import { DATA_DIR } from "./common.ts";
 import { chatInfo, chatModel } from "./ai.ts";
+import { DATA_DIR } from "./common.ts";
 import type { Cluster } from "./types.ts";
 
 const labelSchema = z.object({
@@ -99,7 +99,9 @@ async function main(): Promise<void> {
         for (const m of members) m.family_label = label;
         console.log(`  family ${members[0]!.family_id}: "${label}"`);
       } catch (e) {
-        console.warn(`  family ${members[0]!.family_id}: fallback to tf-idf — ${(e as Error).message}`);
+        console.warn(
+          `  family ${members[0]!.family_id}: fallback to tf-idf — ${(e as Error).message}`,
+        );
       }
     }
   }

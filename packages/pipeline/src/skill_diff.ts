@@ -9,7 +9,7 @@
  * trigger and avoid-when pulls the vector toward WHAT the workflow does, which
  * is what actually discriminates (e.g. vulnerability research vs diff review).
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { embedMany } from "ai";

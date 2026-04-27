@@ -9,7 +9,7 @@
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { PROJECTS_ROOT, normalizeCwd, repoLabel } from "../common.ts";
+import { normalizeCwd, PROJECTS_ROOT, repoLabel } from "../common.ts";
 import type { Turn } from "../types.ts";
 import { isSubstantiveTaskPrompt } from "./filter.ts";
 import type { SourceAdapter } from "./types.ts";
@@ -90,18 +90,18 @@ function parseFile(file: string): Turn[] {
     } catch {
       continue;
     }
-    const type = rec["type"] as string | undefined;
+    const type = rec.type as string | undefined;
     if (type !== "user" && type !== "assistant") continue;
 
-    const msg = (rec["message"] ?? {}) as { role?: string; content?: MsgContent };
+    const msg = (rec.message ?? {}) as { role?: string; content?: MsgContent };
     const text = contentToText(msg.content).trim();
     if (!text) continue;
 
     const role = (msg.role as "user" | "assistant") ?? (type as "user" | "assistant");
-    const isMeta = Boolean(rec["isMeta"]);
+    const isMeta = Boolean(rec.isMeta);
     const slash = extractSlash(text);
-    const session_id = (rec["sessionId"] as string | undefined) ?? "";
-    const cwd = (rec["cwd"] as string | undefined) ?? "";
+    const session_id = (rec.sessionId as string | undefined) ?? "";
+    const cwd = (rec.cwd as string | undefined) ?? "";
     const cwd_norm = normalizeCwd(cwd);
     const repo = repoLabel(cwd_norm);
 
@@ -124,8 +124,8 @@ function parseFile(file: string): Turn[] {
       cwd,
       cwd_norm,
       repo,
-      git_branch: (rec["gitBranch"] as string | undefined) ?? "",
-      timestamp: (rec["timestamp"] as string | undefined) ?? "",
+      git_branch: (rec.gitBranch as string | undefined) ?? "",
+      timestamp: (rec.timestamp as string | undefined) ?? "",
       is_user_prompt: isUserPrompt,
       is_slash: slash !== null,
       slash_cmd: slash,
