@@ -26,9 +26,9 @@ at that turn.
 ```bash
 bun install
 
-# default: local Ollama (qwen2.5:14b chat + qwen3-embedding:8b)
+# default: local Ollama (Qwen3.6-27B chat + qwen3-embedding:8b)
 ollama pull qwen3-embedding:8b
-ollama pull qwen2.5:14b-instruct
+ollama pull Qwen/Qwen3.6-27B
 bun run pipeline
 bun run dev   # → http://localhost:5173
 ```
@@ -61,39 +61,5 @@ Override the defaults with `CCC_CHAT_MODEL` / `CCC_EMBED_MODEL`.
 7. Accepted proposals get a second pass: cosine similarity over the proposal shape (name + description + trigger + avoid-when + body), then a single LLM consolidation call to catch near-duplicates that cosine missed.
 8. Anything still alive is checked against `~/.claude/skills/`. If a proposal's workflow shape is too close to an installed skill, it gets dropped.
 
-## What's hardcoded vs LLM-driven
-
-Two things are hardcoded. Claude Code product facts: bundled skill names, the
-built-in slash commands like `/model` and `/permissions`, and the list of
-system-injected wrapper tags (`<local-command-stdout>`, `<system-reminder>`,
-and so on). And generic English filler patterns: confirmation phrases ("yes",
-"go ahead"), referential follow-up leads, weak verbs that make bad skill
-names.
-
-Everything that requires judgment is an LLM call. Cluster labels, family
-labels, the accept/reject verdict, the specificity rating, and the
-near-duplicate consolidation pass are all model-driven, so the same pipeline
-should generalize to other users without re-tuning vocabulary lists.
-
-## Layout
-
-```
-apps/web/            React + react-three-fiber UI
-packages/pipeline/   bun TypeScript pipeline
-  src/extract.ts          ingest jsonl → turns
-  src/embed.ts            embed user prompts
-  src/cluster.ts          UMAP + HDBSCAN + noise recovery
-  src/session_cluster.ts  session-level clustering
-  src/label.ts            LLM cluster + family labels
-  src/suggest.ts          accept/reject + SKILL.md drafting
-  src/skill_diff.ts       shape-aware dedup vs installed skills
-  src/export.ts           write web.json + per-session views
-  src/ai.ts               provider dispatch (ollama / openai / anthropic / codex)
-```
-
 Pipeline outputs (`packages/pipeline/data/*`) are `.gitignored` since they
 contain personal conversation content. Run the pipeline locally to regenerate.
-
-## Stack
-
-bun · turborepo · Vercel AI SDK · `umap-js` + `hdbscan-ts` · React 19 · `@react-three/fiber` + `drei` + `postprocessing` · motion · streamdown · Tailwind 4

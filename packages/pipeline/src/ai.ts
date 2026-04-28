@@ -21,7 +21,7 @@ import { createOllama } from "ollama-ai-provider-v2";
 export type ProviderName = "ollama" | "openai" | "anthropic" | "codex";
 
 const DEFAULTS: Record<ProviderName, { chat: string; embed: string }> = {
-  ollama: { chat: "qwen2.5:14b-instruct", embed: "qwen3-embedding:8b" },
+  ollama: { chat: "Qwen/Qwen3.6-27B", embed: "qwen3-embedding:8b" },
   openai: { chat: "gpt-5.4", embed: "text-embedding-3-large" },
   anthropic: { chat: "claude-sonnet-4-6", embed: "" },
   // Codex models are GPT-5-family code-tuned variants served on the OpenAI API
