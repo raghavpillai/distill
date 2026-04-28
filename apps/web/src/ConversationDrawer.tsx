@@ -46,10 +46,19 @@ export function ConversationDrawer({ sessionId, turnId, onClose }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // Built once per session file so opening to a target turn is O(1) instead of
+  // findIndex'ing through (potentially) thousands of turns each time the user
+  // clicks a different turn in the same session.
+  const turnIdxById = useMemo(() => {
+    const m = new Map<string, number>();
+    if (data) for (let i = 0; i < data.turns.length; i++) m.set(data.turns[i]!.id, i);
+    return m;
+  }, [data]);
+
   const { visibleTurns, totalTurns, hiddenBefore, hiddenAfter } = useMemo(() => {
     if (!data)
       return { visibleTurns: [], targetIdx: -1, totalTurns: 0, hiddenBefore: 0, hiddenAfter: 0 };
-    const idx = data.turns.findIndex((t) => t.id === turnId);
+    const idx = turnIdxById.get(turnId) ?? -1;
     if (idx < 0 || expandAll)
       return {
         visibleTurns: data.turns,
@@ -67,7 +76,7 @@ export function ConversationDrawer({ sessionId, turnId, onClose }: Props) {
       hiddenBefore: lo,
       hiddenAfter: data.turns.length - hi,
     };
-  }, [data, turnId, expandAll]);
+  }, [data, turnId, expandAll, turnIdxById]);
 
   return (
     <div className="fixed inset-0 z-50 flex">

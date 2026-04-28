@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConversationDrawer } from "./ConversationDrawer";
 import { Galaxy } from "./Galaxy";
 import { SkillsPanel } from "./SkillsPanel";
@@ -22,10 +22,10 @@ export function App() {
   // Bump to ask the Canvas's CameraRig to fly back to the default home view.
   // Counter rather than boolean so we re-trigger if the user clicks twice.
   const [recenterToken, setRecenterToken] = useState(0);
-  const recenter = () => {
+  const recenter = useCallback(() => {
     setSelectedCluster(null); // also clears any active focus
     setRecenterToken((n) => n + 1);
-  };
+  }, []);
 
   useEffect(() => {
     fetch("/data/web.json")
@@ -55,6 +55,33 @@ export function App() {
     () => (data?.clusters ?? []).filter((c) => acceptedClusterIds.has(c.id)),
     [data, acceptedClusterIds],
   );
+  // Built once per dataset so SkillsPanel's onOpenThread doesn't .find() over
+  // ~thousands of points each time someone clicks a turn row.
+  const pointById = useMemo(() => {
+    const m = new Map<string, Point>();
+    for (const p of data?.points ?? []) m.set(p.id, p);
+    return m;
+  }, [data]);
+
+  // Stable handlers so memoized Galaxy/SkillsPanel don't re-render every time
+  // unrelated state (drawer, repo filter) changes upstream.
+  const onGalaxyOpenThread = useCallback((p: Point) => {
+    if (!p.s) return;
+    setOpenThread({ sessionId: p.s, turnId: p.id });
+    if (p.c >= 0) setSelectedCluster(p.c);
+  }, []);
+  const onSkillsOpenThread = useCallback(
+    (turnId: string) => {
+      const p = pointById.get(turnId);
+      if (!p?.s) return;
+      setOpenThread({ sessionId: p.s, turnId });
+      if (p.c >= 0) setSelectedCluster(p.c);
+    },
+    [pointById],
+  );
+  const closeDrawer = useCallback(() => setOpenThread(null), []);
+  const onRepoComboChange = useCallback((v: string) => setRepoFilter(v === "__all__" ? "" : v), []);
+  const clearSelection = useCallback(() => setSelectedCluster(null), []);
   // Session-level clusters (id ≥ 10000) have no points whose `p.c` matches — their
   // prompts are labeled with their ORIGINAL prompt-cluster id. Synthesize planet
   // points for each session-cluster skill by pulling every prompt from the
@@ -155,8 +182,13 @@ export function App() {
   }
 
   const { stats, clusters, repos, skills } = data;
-  const noisePct = (stats.n_noise / stats.total) * 100;
   const nSkills = skills.filter((s) => s.accepted).length;
+  const generatedAtLabel = new Date(stats.generated_at).toLocaleString(undefined, {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
   return (
     <div className="h-full flex flex-col">
@@ -178,7 +210,6 @@ export function App() {
               { label: "prompts", value: stats.total },
               { label: "skills", value: nSkills },
               { label: "clusters", value: stats.n_clusters },
-              { label: "noise", value: `${noisePct.toFixed(0)}%` },
               { label: "repos", value: stats.n_repos },
             ]}
           />
@@ -193,13 +224,7 @@ export function App() {
               distill
             </h1>
             <div className="mono text-[10.5px] mt-2 text-[color:var(--color-dust)]">
-              generated{" "}
-              {new Date(stats.generated_at).toLocaleString(undefined, {
-                month: "short",
-                day: "2-digit",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
+              generated {generatedAtLabel}
             </div>
           </div>
         </div>
@@ -208,7 +233,7 @@ export function App() {
           <span className="smallcaps text-[color:var(--color-dust)]">filter · repo</span>
           <Combobox
             value={repoFilter || "__all__"}
-            onValueChange={(v) => setRepoFilter(v === "__all__" ? "" : v)}
+            onValueChange={onRepoComboChange}
             searchPlaceholder="search repos…"
             items={repoComboItems}
             renderValue={(it) =>
@@ -221,7 +246,7 @@ export function App() {
                 initial={{ opacity: 0, x: -6 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -6 }}
-                onClick={() => setSelectedCluster(null)}
+                onClick={clearSelection}
                 className="smallcaps text-[color:var(--color-copper)] hover:text-[color:var(--color-brass-bright)] transition-colors"
               >
                 ◇ clear selection
@@ -245,12 +270,7 @@ export function App() {
             onSelectCluster={setSelectedCluster}
             compassRef={compassRef}
             recenterToken={recenterToken}
-            onOpenThread={(p) => {
-              if (!p.s) return;
-              setOpenThread({ sessionId: p.s, turnId: p.id });
-              // Focus the planet's solar system so other labels dim.
-              if (p.c >= 0) setSelectedCluster(p.c);
-            }}
+            onOpenThread={onGalaxyOpenThread}
           />
 
           {/* Observatory chrome: compass rose + legend. Pointer-events on the
@@ -282,12 +302,7 @@ export function App() {
             points={data.points}
             selectedCluster={selectedCluster}
             onSelectCluster={setSelectedCluster}
-            onOpenThread={(turnId) => {
-              const p = data.points.find((pp) => pp.id === turnId);
-              if (!p?.s) return;
-              setOpenThread({ sessionId: p.s, turnId });
-              if (p.c >= 0) setSelectedCluster(p.c);
-            }}
+            onOpenThread={onSkillsOpenThread}
           />
         </motion.aside>
       </main>
@@ -298,7 +313,7 @@ export function App() {
             key={`${openThread.sessionId}:${openThread.turnId}`}
             sessionId={openThread.sessionId}
             turnId={openThread.turnId}
-            onClose={() => setOpenThread(null)}
+            onClose={closeDrawer}
           />
         )}
       </AnimatePresence>

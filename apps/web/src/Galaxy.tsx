@@ -2,13 +2,11 @@ import { Billboard, OrbitControls, Stars, Text } from "@react-three/drei";
 import { Canvas, type ThreeEvent, useFrame, useThree } from "@react-three/fiber";
 import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import { KernelSize } from "postprocessing";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { memo, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { clusterColor } from "./colors";
 import { type Planet, planetsFromPoints } from "./orbits";
 import type { Cluster, Point } from "./types";
-
-type Hover = { planetIdx: number | null; mouseX: number; mouseY: number };
 
 type CompassRefShape = React.RefObject<{ yaw: number; pitch: number }>;
 
@@ -28,49 +26,79 @@ const SUN_BASE_RADIUS = 0.22;
 const SELECTED_PLANET_RADIUS = 0.19;
 const HOVER_PLANET_RADIUS = 0.26;
 
-export function Galaxy(props: Props) {
-  const [hover, setHover] = useState<Hover>({ planetIdx: null, mouseX: 0, mouseY: 0 });
-  const hoverPlanetRef = useRef<{ planets: Planet[]; clusters: Cluster[] } | null>(null);
+// Hoisted out of the per-planet useFrame loop — was allocating thousands of
+// THREE.Color instances per second when a cluster was focused.
+const DIM_COLOR = new THREE.Color("#070b15");
+// Shared geometries: every sun/corona/planet-outline/planet uses the same
+// sphere geometry (scaled per-instance). Avoids R3F recreating geometry
+// objects when args arrays change identity across renders.
+const UNIT_SUN_GEOMETRY = new THREE.SphereGeometry(1, 28, 28);
+const UNIT_CORONA_GEOMETRY = new THREE.SphereGeometry(1, 24, 24);
+const UNIT_PLANET_GEOMETRY = new THREE.SphereGeometry(PLANET_BASE_RADIUS, 14, 14);
+const UNIT_OUTLINE_GEOMETRY = new THREE.SphereGeometry(PLANET_BASE_RADIUS, 10, 10);
+
+export const Galaxy = memo(function Galaxy(props: Props) {
+  // Only the planet index lives in React state — mouse coords go through a
+  // ref + direct DOM write so pointermove doesn't re-render the Canvas.
+  const [planetIdx, setPlanetIdx] = useState<number | null>(null);
+  const mousePos = useRef({ x: 0, y: 0 });
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
   const { planets } = useMemo(
     () => planetsFromPoints(props.points, props.clusters),
     [props.points, props.clusters],
   );
-  hoverPlanetRef.current = { planets, clusters: props.clusters };
+  const clusterById = useMemo(() => {
+    const m = new Map<number, Cluster>();
+    for (const c of props.clusters) m.set(c.id, c);
+    return m;
+  }, [props.clusters]);
 
-  const hovered = hover.planetIdx !== null ? (planets[hover.planetIdx] ?? null) : null;
-  const hoveredCluster = hovered ? props.clusters.find((c) => c.id === hovered.clusterId) : null;
+  const hovered = planetIdx !== null ? (planets[planetIdx] ?? null) : null;
+  const hoveredCluster = hovered ? clusterById.get(hovered.clusterId) : null;
+  const tooltipVisible =
+    !!hovered && !!hoveredCluster && props.selectedCluster === hovered?.clusterId;
+
+  useLayoutEffect(() => {
+    if (!tooltipVisible) return;
+    const el = tooltipRef.current;
+    if (!el) return;
+    const x = Math.min(window.innerWidth - 400, mousePos.current.x + 14);
+    const y = Math.min(window.innerHeight - 140, mousePos.current.y + 14);
+    el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+  }, [tooltipVisible]);
 
   return (
     <div
       className="w-full h-full relative"
       onPointerMove={(e) => {
-        setHover((h) => ({ ...h, mouseX: e.clientX, mouseY: e.clientY }));
+        mousePos.current.x = e.clientX;
+        mousePos.current.y = e.clientY;
+        const el = tooltipRef.current;
+        if (!el) return;
+        const x = Math.min(window.innerWidth - 400, e.clientX + 14);
+        const y = Math.min(window.innerHeight - 140, e.clientY + 14);
+        el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
       }}
     >
       <Canvas
         camera={{ position: [0, 8, 42], fov: 48, near: 0.1, far: 2000 }}
-        gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
+        // antialias off: Bloom + KernelSize.LARGE already smooths edges; with
+        // dpr up to 2× MSAA was redundant and burned a lot of fill rate.
+        gl={{ antialias: false, alpha: true, powerPreference: "high-performance" }}
         dpr={[1, 2]}
         onPointerMissed={() => props.onSelectCluster(null)}
       >
         <color attach="background" args={["#050812"]} />
         <fog attach="fog" args={["#050812", 55, 120]} />
         <Suspense fallback={null}>
-          <Scene
-            {...props}
-            onHoverPlanet={(idx) => setHover((h) => ({ ...h, planetIdx: idx }))}
-            hoveredIdx={hover.planetIdx}
-          />
+          <Scene {...props} onHoverPlanet={setPlanetIdx} hoveredIdx={planetIdx} />
           {props.compassRef && <CameraTracker compassRef={props.compassRef} />}
         </Suspense>
       </Canvas>
-      {hovered && hoveredCluster && props.selectedCluster === hovered.clusterId && (
+      {tooltipVisible && (
         <div
-          className="pointer-events-none fixed z-[60] max-w-[380px] px-3 py-2.5 rounded-[3px] border border-[color:var(--color-brass-dim)]/60 bg-[color:var(--color-ink-deep)]/95 backdrop-blur shadow-[0_10px_30px_rgba(0,0,0,0.45)]"
-          style={{
-            left: Math.min(window.innerWidth - 400, hover.mouseX + 14),
-            top: Math.min(window.innerHeight - 140, hover.mouseY + 14),
-          }}
+          ref={tooltipRef}
+          className="pointer-events-none fixed top-0 left-0 z-[60] max-w-[380px] px-3 py-2.5 rounded-[3px] border border-[color:var(--color-brass-dim)]/60 bg-[color:var(--color-ink-deep)]/95 backdrop-blur shadow-[0_10px_30px_rgba(0,0,0,0.45)] will-change-transform"
         >
           <div className="smallcaps" style={{ color: clusterColor(hovered.clusterId) }}>
             #{String(hovered.clusterId).padStart(3, "0")} · {hoveredCluster.label}
@@ -85,7 +113,7 @@ export function Galaxy(props: Props) {
       )}
     </div>
   );
-}
+});
 
 type SceneProps = Props & {
   hoveredIdx: number | null;
@@ -199,30 +227,42 @@ function Suns({
   onSelectCluster: (id: number | null) => void;
 }) {
   const focused = selectedCluster !== null;
+  // Static per-cluster geometry: color, radius, position, badge text. None of
+  // these change with selection so we shouldn't recompute them when the user
+  // clicks between clusters.
+  const sunStates = useMemo(
+    () =>
+      clusters.map((c) => ({
+        id: c.id,
+        label: c.label,
+        color: clusterColor(c.id),
+        r: SUN_BASE_RADIUS * (0.75 + Math.log10(Math.max(2, c.size)) * 0.35),
+        position: c.center3d as [number, number, number],
+        badge: `#${String(c.id).padStart(3, "0")} · N=${c.size}`,
+      })),
+    [clusters],
+  );
   return (
     <group>
-      {clusters.map((c) => {
-        const color = clusterColor(c.id);
-        const r = SUN_BASE_RADIUS * (0.75 + Math.log10(Math.max(2, c.size)) * 0.35);
-        const isSel = selectedCluster === c.id;
+      {sunStates.map((s) => {
+        const isSel = selectedCluster === s.id;
         const dimmed = focused && !isSel;
         // When zoomed into a specific cluster, aggressively push everything
-        // else toward invisibility so the selected system is readable. The old
-        // values (sun=0.1, corona=0.012) still left a soup of faint circles
-        // bleeding through. The selected sun's corona also shrinks so it
-        // doesn't glare over its own planets.
+        // else toward invisibility so the selected system is readable.
         const sunOpacity = dimmed ? 0.035 : 1;
         const coronaOpacity = dimmed ? 0.002 : isSel ? 0.08 : 0.18;
-        const coronaRadius = isSel ? r * 1.3 : r * 1.9;
+        const coronaRadius = isSel ? s.r * 1.3 : s.r * 1.9;
         const labelOpacity = dimmed ? 0.04 : 1;
         const primaryLabelColor = dimmed ? "#0f1624" : isSel ? "#f2ebd9" : "#d9d1bd";
         const secondaryLabelColor = dimmed ? "#0a0f1a" : "#8c8472";
         return (
-          <group key={c.id} position={c.center3d as [number, number, number]}>
+          <group key={s.id} position={s.position}>
             <mesh
+              geometry={UNIT_SUN_GEOMETRY}
+              scale={s.r}
               onClick={(e: ThreeEvent<MouseEvent>) => {
                 e.stopPropagation();
-                onSelectCluster(selectedCluster === c.id ? null : c.id);
+                onSelectCluster(selectedCluster === s.id ? null : s.id);
               }}
               onPointerOver={(e: ThreeEvent<PointerEvent>) => {
                 e.stopPropagation();
@@ -231,9 +271,8 @@ function Suns({
               onPointerOut={() => (document.body.style.cursor = "")}
               visible={!dimmed || sunOpacity > 0.02}
             >
-              <sphereGeometry args={[r, 28, 28]} />
               <meshBasicMaterial
-                color={color}
+                color={s.color}
                 transparent
                 opacity={sunOpacity}
                 depthWrite={!dimmed}
@@ -242,10 +281,13 @@ function Suns({
             </mesh>
             {/* Corona — shrunk when this sun is the focused one so it doesn't
                 wash out the planets orbiting around it. */}
-            <mesh visible={!dimmed || coronaOpacity > 0.001}>
-              <sphereGeometry args={[coronaRadius, 24, 24]} />
+            <mesh
+              geometry={UNIT_CORONA_GEOMETRY}
+              scale={coronaRadius}
+              visible={!dimmed || coronaOpacity > 0.001}
+            >
               <meshBasicMaterial
-                color={color}
+                color={s.color}
                 transparent
                 opacity={coronaOpacity}
                 depthWrite={false}
@@ -255,7 +297,7 @@ function Suns({
             </mesh>
             <Billboard>
               <Text
-                position={[0, r + 0.5, 0]}
+                position={[0, s.r + 0.5, 0]}
                 fontSize={isSel ? 0.32 : 0.26}
                 color={primaryLabelColor}
                 fillOpacity={labelOpacity}
@@ -273,26 +315,27 @@ function Suns({
                 material-depthTest={!isSel}
                 renderOrder={isSel ? 1000 : dimmed ? 0 : 5}
               >
-                {c.label}
+                {s.label}
               </Text>
-              {!dimmed && (
-                <Text
-                  position={[0, r + 0.22, 0]}
-                  fontSize={0.14}
-                  color={secondaryLabelColor}
-                  fillOpacity={labelOpacity}
-                  anchorX="center"
-                  anchorY="bottom"
-                  letterSpacing={0.1}
-                  material-toneMapped={false}
-                  material-transparent
-                  material-depthWrite={false}
-                  material-depthTest={!isSel}
-                  renderOrder={isSel ? 1000 : 5}
-                >
-                  {`#${String(c.id).padStart(3, "0")} · N=${c.size}`}
-                </Text>
-              )}
+              {/* Secondary label always rendered: toggling via mount/unmount
+                  was thrashing drei's SDF text on every cluster selection. */}
+              <Text
+                position={[0, s.r + 0.22, 0]}
+                fontSize={0.14}
+                color={secondaryLabelColor}
+                fillOpacity={dimmed ? 0 : labelOpacity}
+                visible={!dimmed}
+                anchorX="center"
+                anchorY="bottom"
+                letterSpacing={0.1}
+                material-toneMapped={false}
+                material-transparent
+                material-depthWrite={false}
+                material-depthTest={!isSel}
+                renderOrder={isSel ? 1000 : 5}
+              >
+                {s.badge}
+              </Text>
             </Billboard>
           </group>
         );
@@ -424,7 +467,7 @@ function Planets({
       }
 
       if (dimmed) {
-        tempColor.copy(baseColors[i]!).lerp(new THREE.Color("#070b15"), 0.95);
+        tempColor.copy(baseColors[i]!).lerp(DIM_COLOR, 0.95);
         mesh.setColorAt(i, tempColor);
       } else {
         mesh.setColorAt(
@@ -444,11 +487,10 @@ function Planets({
           the planet fill overlays it, leaving a thin silhouette around each planet. */}
       <instancedMesh
         ref={outlineRef}
-        args={[undefined, undefined, planets.length]}
+        args={[UNIT_OUTLINE_GEOMETRY, undefined, planets.length]}
         frustumCulled={false}
         renderOrder={-1}
       >
-        <sphereGeometry args={[PLANET_BASE_RADIUS, 10, 10]} />
         <meshBasicMaterial
           color="#000000"
           side={THREE.BackSide}
@@ -458,7 +500,7 @@ function Planets({
       </instancedMesh>
       <instancedMesh
         ref={meshRef}
-        args={[undefined, undefined, planets.length]}
+        args={[UNIT_PLANET_GEOMETRY, undefined, planets.length]}
         frustumCulled={false}
         onPointerMove={(e: ThreeEvent<PointerEvent>) => {
           if (selectedCluster === null) return;
@@ -484,7 +526,6 @@ function Planets({
           onClick(planet);
         }}
       >
-        <sphereGeometry args={[PLANET_BASE_RADIUS, 14, 14]} />
         {/* toneMapped + higher lum threshold downstream: planets don't bloom
             into each other, so overlapping orbits stay readable as separate discs. */}
         <meshBasicMaterial toneMapped />
@@ -503,28 +544,32 @@ function OrbitRings({
   color: string;
 }) {
   const ringColor = useMemo(() => new THREE.Color(color), [color]);
+  // Precomputed once per planet set so re-renders don't allocate fresh Euler
+  // objects per ring on every frame the parent re-renders.
+  const rings = useMemo(
+    () =>
+      planets.map((p) => ({
+        key: `${p.id}:${p.orbitRadius}`,
+        rotation: new THREE.Euler(p.tilt, p.nodeAxis, 0, "YXZ"),
+        args: [p.orbitRadius - 0.003, p.orbitRadius + 0.003, 96] as [number, number, number],
+      })),
+    [planets],
+  );
   return (
     <group position={center}>
-      {planets.map((p) => {
-        // Build rotated ring: orbit plane is rotated by tilt (x) then nodeAxis (y).
-        const rot = new THREE.Euler(p.tilt, p.nodeAxis, 0, "YXZ");
-        return (
-          <mesh
-            key={`${p.id}:${p.orbitRadius}`}
-            rotation={rot as unknown as [number, number, number]}
-          >
-            <ringGeometry args={[p.orbitRadius - 0.003, p.orbitRadius + 0.003, 96]} />
-            <meshBasicMaterial
-              color={ringColor}
-              transparent
-              opacity={0.12}
-              side={THREE.DoubleSide}
-              depthWrite={false}
-              toneMapped={false}
-            />
-          </mesh>
-        );
-      })}
+      {rings.map((r) => (
+        <mesh key={r.key} rotation={r.rotation as unknown as [number, number, number]}>
+          <ringGeometry args={r.args} />
+          <meshBasicMaterial
+            color={ringColor}
+            transparent
+            opacity={0.12}
+            side={THREE.DoubleSide}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+      ))}
     </group>
   );
 }

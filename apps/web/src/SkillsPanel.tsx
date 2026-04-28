@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 import { clusterColor } from "./colors";
 import type { Cluster, Point, SkillProposal } from "./types";
@@ -16,7 +16,7 @@ type Props = {
 
 type Tab = "skills" | "all";
 
-export function SkillsPanel({
+export const SkillsPanel = memo(function SkillsPanel({
   clusters,
   skills,
   points,
@@ -330,7 +330,7 @@ export function SkillsPanel({
       </div>
     </div>
   );
-}
+});
 
 function TabBtn({
   active,
